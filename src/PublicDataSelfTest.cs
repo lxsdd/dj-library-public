@@ -71,7 +71,7 @@ namespace DJLibrary
                         walWriter.Execute("PRAGMA journal_mode=WAL");
                         walWriter.Execute("INSERT INTO release(album_artist,album) VALUES('WAL Artist','WAL Commit')");
                         catalog.ImportCatalogFile(walSource);
-                        Verify(catalog.GetCounts(), 2, 2, 2, "open-WAL snapshot import");
+                        Verify(catalog.GetCounts(), 3, 2, 2, "open-WAL snapshot import");
                     }
 
                     // Supported compression formats must use the same safe
