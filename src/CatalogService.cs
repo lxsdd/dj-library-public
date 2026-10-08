@@ -932,39 +932,52 @@ namespace DJLibrary
             if (String.Equals(Path.GetFullPath(source), Path.GetFullPath(_path), StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Der geöffnete Katalog kann nicht aus sich selbst importiert werden.");
 
-            // Inspect a private disposable COPY first. Migration, quick_check and
-            // foreign-key validation must all pass before touching the live catalog.
-            // No user file is ever sent to CI or committed to source control.
+            // Stage a CONSISTENT SQLite snapshot, not a raw file copy: incoming
+            // databases may have committed changes in a separate -wal file.
+            // The source and all of its sidecars remain untouched.
             string preflight = Path.Combine(Path.GetTempPath(), "DJLibrary-import-check-" + Guid.NewGuid().ToString("N") + ".sqlite");
+            string temp = _path + ".restore.tmp";
             try
             {
                 using (WinSqliteDb original = new WinSqliteDb(source))
+                {
                     if (!String.Equals(original.QuickCheck(), "ok", StringComparison.OrdinalIgnoreCase))
                         throw new InvalidDataException("Import-Datenbank besteht quick_check nicht.");
-                File.Copy(source, preflight, false);
+                    original.BackupTo(preflight);
+                }
+
+                // Migration and referential integrity are verified BEFORE any
+                // mutation of the current user's live catalog.
                 using (CatalogService candidate = OpenForTesting(preflight))
                 {
                     if (candidate.ForeignKeyViolationCount() != 0)
                         throw new InvalidDataException("Import-Datenbank hat unzulässige Fremdschlüssel.");
                 }
+
+                // Export the already-migrated, validated snapshot through SQLite
+                // itself, so WAL/checkpoint state cannot be lost in file copying.
+                if (File.Exists(temp)) File.Delete(temp);
+                using (WinSqliteDb prepared = new WinSqliteDb(preflight))
+                    prepared.BackupTo(temp);
+
+                if (_db != null) { _db.Dispose(); _db = null; }
+                DeleteSidecars(_path);
+                if (File.Exists(_path)) File.Replace(temp, _path, _path + ".before-restore.bak", true);
+                else File.Move(temp, _path);
+                OpenDatabase();
+                ValidateAndMigrate();
+                RefreshRecoveryBackup();
             }
             finally
             {
                 DeleteSidecars(preflight);
+                DeleteSidecars(temp);
                 foreach (string suffix in new[] { "", ".pre-v2.bak", ".pre-v3.bak", ".pre-v4.bak" })
                 {
                     try { if (File.Exists(preflight + suffix)) File.Delete(preflight + suffix); } catch { }
                 }
+                try { if (File.Exists(temp)) File.Delete(temp); } catch { }
             }
-            if (_db != null) { _db.Dispose(); _db = null; }
-            DeleteSidecars(_path);
-            string temp = _path + ".restore.tmp";
-            File.Copy(source, temp, true);
-            if (File.Exists(_path)) File.Replace(temp, _path, _path + ".before-restore.bak", true);
-            else File.Move(temp, _path);
-            OpenDatabase();
-            ValidateAndMigrate();
-            RefreshRecoveryBackup();
         }
 
         private Dictionary<string, object> Snapshot(string table, long id)
