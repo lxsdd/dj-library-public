@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.IO.Compression;
 
 namespace DJLibrary
 {
@@ -60,6 +61,34 @@ namespace DJLibrary
                     if (!rejected) throw new InvalidDataException("Invalid local import was accepted.");
                     Verify(catalog.GetCounts(), 2, 2, 2, "invalid import preserved current catalog");
 
+                    // WAL fixture: leave another SQLite connection open while
+                    // importing. The latest committed release can live in -wal;
+                    // a raw file copy of .sqlite would silently discard it.
+                    string walSource = Path.Combine(dir, "wal-source.sqlite");
+                    catalog.Backup(walSource);
+                    using (WinSqliteDb walWriter = new WinSqliteDb(walSource))
+                    {
+                        walWriter.Execute("PRAGMA journal_mode=WAL");
+                        walWriter.Execute("INSERT INTO release(album_artist,album) VALUES('WAL Artist','WAL Commit')");
+                        catalog.ImportCatalogFile(walSource);
+                        Verify(catalog.GetCounts(), 2, 2, 2, "open-WAL snapshot import");
+                    }
+
+                    // Supported compression formats must use the same safe
+                    // preflight, even for the oldest locally held backups.
+                    string gz = Path.Combine(dir, "compressed.sqlite.gz");
+                    using (FileStream output = File.Create(gz))
+                    using (GZipStream zipper = new GZipStream(output, CompressionMode.Compress))
+                    using (FileStream input = File.OpenRead(exported))
+                        input.CopyTo(zipper);
+                    catalog.ImportCatalogFile(gz);
+                    Verify(catalog.GetCounts(), 1, 2, 2, "gzip SQLite import");
+
+                    string b64 = Path.Combine(dir, "compressed.sqlite.gz.b64");
+                    File.WriteAllText(b64, Convert.ToBase64String(File.ReadAllBytes(gz)));
+                    catalog.ImportCatalogFile(b64);
+                    Verify(catalog.GetCounts(), 1, 2, 2, "base64+gzip SQLite import");
+
                     catalog.Restore(exported);
                     Verify(catalog.GetCounts(), 1, 2, 2, "local import/restore");
                 }
@@ -68,7 +97,7 @@ namespace DJLibrary
                     throw new InvalidDataException("Public-smoke unknown CDX classification failed.");
 
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
-                       "CDX compatible/incompatible/unknown, local SQLite export/import, no user fixtures";
+                       "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 import, no user fixtures";
             }
             finally
             {
