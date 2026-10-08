@@ -91,6 +91,7 @@ echo.
   "src\CatalogMultiDiscCompatibility.cs" ^
   "src\CatalogModels.cs" ^
   "src\CatalogService.cs" ^
+  "src\CatalogService.Interchange.cs" ^
   "src\CatalogService.NativeProjection.cs" ^
   "src\WindowsCdDrive.cs" ^
   "src\WindowsCdTextFallback.cs" ^
