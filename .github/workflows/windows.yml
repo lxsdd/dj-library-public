@@ -1,0 +1,91 @@
+name: Windows build and synthetic self-test
+
+on:
+  push:
+    branches:
+      - main
+      - 'migration/**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dj-public-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - name: Checkout public DJ Library source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Guard against tracked personal datasets
+        shell: pwsh
+        run: |
+          $forbidden = @(git ls-files | Where-Object { $_ -match '(^|/)(catalog-seed|tracks\.tsv|cds\.tsv|matches\.tsv|digital-items|private-research|user-imports|local-fixtures)' })
+          if ($forbidden.Count -gt 0) { throw ('Personal fixture paths are forbidden in the public tree: ' + ($forbidden -join ', ')) }
+
+      - name: Checkout public metadata normalizer at pinned revision
+        uses: actions/checkout@v4
+        with:
+          repository: lxsdd/dj-metadata-normalizer
+          path: dj-metadata-normalizer
+          ref: 365432ad8d6d0b80cc138c21e0d8fd8edca9e499
+          persist-credentials: false
+
+      - name: Build native metadata engine
+        shell: pwsh
+        run: |
+          cmake -S dj-metadata-normalizer -B djmeta-build -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'cmake configuration failed' }
+          cmake --build djmeta-build --config Release --target djmeta_native
+          if ($LASTEXITCODE -ne 0) { throw 'Native engine build failed' }
+          Copy-Item djmeta-build/Release/djmeta_native.dll ./djmeta_native.dll
+          New-Item -ItemType Directory -Force rules | Out-Null
+          Copy-Item dj-metadata-normalizer/rules/default-rules.json rules/default-rules.json
+
+      - name: Build full WPF application
+        shell: cmd
+        run: call BuildOnly.cmd
+
+      - name: Run independent synthetic catalog, CDX and import tests
+        shell: pwsh
+        run: |
+          # WPF compiles as /target:winexe. PowerShell's call operator may not
+          # wait for a GUI-subsystem process or set LASTEXITCODE reliably.
+          $process = Start-Process -FilePath './DJLibrary.exe' -ArgumentList '--self-test-public' -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            if (Test-Path SELF-TEST-ERROR.txt) { Get-Content SELF-TEST-ERROR.txt }
+            throw 'Synthetic self test failed'
+          }
+          $report = Get-Content SELF-TEST.txt -Raw
+          if (-not $report.Contains('PASS_PUBLIC_CONTRACT')) { throw "Synthetic self test incomplete: $report" }
+          Write-Host $report
+
+      - name: Package app without user data
+        shell: pwsh
+        run: |
+          $expected = @('DJLibrary.exe', 'djmeta_native.dll', 'rules/default-rules.json')
+          foreach ($file in $expected) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing distributable: $file" }
+          }
+          New-Item -ItemType Directory -Force -Path public-dist/rules | Out-Null
+          Copy-Item DJLibrary.exe public-dist/DJLibrary.exe
+          Copy-Item djmeta_native.dll public-dist/djmeta_native.dll
+          Copy-Item rules/default-rules.json public-dist/rules/default-rules.json
+          Compress-Archive -Path public-dist/* -DestinationPath DJLibrary-public-portable.zip
+
+      - name: Upload clean portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: DJLibrary-public-portable
+          path: DJLibrary-public-portable.zip
+          if-no-files-found: error
+          retention-days: 7
