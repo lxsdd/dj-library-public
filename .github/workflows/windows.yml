@@ -59,7 +59,10 @@ jobs:
         shell: pwsh
         run: |
           & ./DJLibrary.exe --self-test-public
-          if ($LASTEXITCODE -ne 0) { throw 'Synthetic self test failed' }
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path SELF-TEST-ERROR.txt) { Get-Content SELF-TEST-ERROR.txt }
+            throw 'Synthetic self test failed'
+          }
           $report = Get-Content SELF-TEST.txt -Raw
           if (-not $report.Contains('PASS_PUBLIC_CONTRACT')) { throw "Synthetic self test incomplete: $report" }
           Write-Host $report
