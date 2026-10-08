@@ -91,13 +91,35 @@ namespace DJLibrary
 
                     catalog.Restore(exported);
                     Verify(catalog.GetCounts(), 1, 2, 2, "local import/restore");
+
+                    // Vendor-neutral metadata interchange: all identifiers are
+                    // re-created in an isolated staging DB before replacement.
+                    string interchange = Path.Combine(dir, "portable-catalog.json");
+                    catalog.ExportJsonInterchange(interchange);
+                    catalog.CreateRelease(new CatalogRelease {
+                        AlbumArtist = "Temporary", Album = "Must not survive JSON import"
+                    });
+                    Verify(catalog.GetCounts(), 2, 2, 2, "pre-interchange mutation");
+                    catalog.ImportJsonInterchange(interchange);
+                    Verify(catalog.GetCounts(), 1, 2, 2, "JSON export/import roundtrip");
+                    if (catalog.ForeignKeyViolationCount() != 0 ||
+                        catalog.GetDiscs(catalog.GetReleases()[0].Id)[0].CdxCompatibilityState != CdxCompatibilityState.Compatible)
+                        throw new InvalidDataException("JSON interchange lost physical CDX/TOC data.");
+
+                    string wrongFormat = Path.Combine(dir, "not-interchange.json");
+                    File.WriteAllText(wrongFormat, "{}");
+                    bool rejectedJson = false;
+                    try { catalog.ImportJsonInterchange(wrongFormat); }
+                    catch (InvalidDataException) { rejectedJson = true; }
+                    if (!rejectedJson) throw new InvalidDataException("Foreign JSON format was accepted.");
+                    Verify(catalog.GetCounts(), 1, 2, 2, "invalid JSON preserves live catalog");
                 }
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
                     throw new InvalidDataException("Public-smoke unknown CDX classification failed.");
 
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
-                       "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 import, no user fixtures";
+                       "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, no user fixtures";
             }
             finally
             {
