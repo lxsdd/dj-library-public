@@ -233,9 +233,15 @@ namespace DJLibrary
             MenuItem backup = new MenuItem { Header = "_Create Backup…" };
             backup.Click += delegate { Backup(); };
             file.Items.Add(backup);
+            MenuItem exportJson = new MenuItem { Header = "_Export Interchange JSON…" };
+            exportJson.Click += delegate { ExportJson(); };
+            file.Items.Add(exportJson);
             MenuItem restore = new MenuItem { Header = "_Restore Backup…" };
             restore.Click += delegate { Restore(); };
             file.Items.Add(restore);
+            MenuItem importJson = new MenuItem { Header = "_Import Interchange JSON…" };
+            importJson.Click += delegate { ImportJson(); };
+            file.Items.Add(importJson);
             file.Items.Add(new Separator());
             MenuItem close = new MenuItem { Header = "_Close" };
             close.Click += delegate { Close(); };
@@ -752,6 +758,31 @@ namespace DJLibrary
             if (dlg.ShowDialog(this) != true) return;
             _catalog.Backup(dlg.FileName);
             MessageBox.Show(this, "Backup erfolgreich erstellt:\n" + dlg.FileName, "Backup", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void ExportJson()
+        {
+            SaveFileDialog dlg = new SaveFileDialog();
+            dlg.Filter = "DJ Library Interchange JSON (*.json)|*.json";
+            dlg.FileName = "dj-library-interchange-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".json";
+            if (dlg.ShowDialog(this) != true) return;
+            _catalog.ExportJsonInterchange(dlg.FileName);
+            MessageBox.Show(this,
+                "Portable JSON-Metadaten wurden nur lokal exportiert. Die Datei kann persönliche Titel/Künstler enthalten. Bitte privat verwahren.\n\nFür vollständige Sicherungen mit Undo-Historie weiterhin SQLite-Backup verwenden.",
+                "JSON Export", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void ImportJson()
+        {
+            OpenFileDialog dlg = new OpenFileDialog();
+            dlg.Filter = "DJ Library Interchange JSON (*.json)|*.json";
+            if (dlg.ShowDialog(this) != true) return;
+            if (MessageBox.Show(this,
+                    "Den aktuellen Katalog aus dieser lokalen JSON-Datei neu aufbauen?\n\nVorher bleibt eine .before-restore.bak mit der vollständigen alten SQLite-Datenbank erhalten. Die JSON-Datei enthält keine Undo-Historie.",
+                    "JSON importieren", MessageBoxButton.YesNo, MessageBoxImage.Warning)
+                != MessageBoxResult.Yes) return;
+            _catalog.ImportJsonInterchange(dlg.FileName);
+            ReloadData(false);
         }
 
         private void Restore()
