@@ -58,8 +58,10 @@ jobs:
       - name: Run independent synthetic catalog, CDX and import tests
         shell: pwsh
         run: |
-          & ./DJLibrary.exe --self-test-public
-          if ($LASTEXITCODE -ne 0) {
+          # WPF compiles as /target:winexe. PowerShell's call operator may not
+          # wait for a GUI-subsystem process or set LASTEXITCODE reliably.
+          $process = Start-Process -FilePath './DJLibrary.exe' -ArgumentList '--self-test-public' -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
             if (Test-Path SELF-TEST-ERROR.txt) { Get-Content SELF-TEST-ERROR.txt }
             throw 'Synthetic self test failed'
           }
