@@ -1,0 +1,43 @@
+name: Experimental WinUI 3 catalog UX
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/winui3/**'
+      - '.github/workflows/winui3-experiment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winui3-spike-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  compile-prototype:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: experiments/winui3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Restore pinned WinUI 3 and TableView dependencies
+        shell: pwsh
+        run: |
+          dotnet restore DJLibrary.WinUiSpike.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw 'WinUI 3 restore failed' }
+      - name: Compile Windows App SDK / WinUI TableView prototype
+        shell: pwsh
+        run: |
+          dotnet build DJLibrary.WinUiSpike.csproj -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { throw 'WinUI 3 compile failed' }
+      - name: Clarify qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'Source-compilation result only: no production catalog/DB, no visual or runtime PASS.'
+          Write-Host 'Do not merge as a replacement for the existing WPF app.'
