@@ -34,6 +34,20 @@ public sealed partial class MainWindow
 
             var scrolls = new List<ScrollViewer>();
             GatherScrollViewers(TracksGrid, scrolls);
+            // TableView's default inner ScrollViewer can disable the horizontal
+            // mode even when columns require more width than the viewport.
+            // Enable the actual rendered viewer rather than assuming column.Width
+            // alone guarantees a usable horizontal scrolling surface.
+            foreach (var rendered in scrolls)
+            {
+                rendered.HorizontalScrollMode = ScrollMode.Enabled;
+                rendered.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+            }
+            TracksGrid.UpdateLayout();
+            await AwaitActualFrameAsync();
+            await YieldToUiAsync();
+            scrolls.Clear();
+            GatherScrollViewers(TracksGrid, scrolls);
             ScrollViewer? horizontal = scrolls
                 .Where(x => x.ScrollableWidth > 100)
                 .OrderByDescending(x => x.ScrollableWidth)
