@@ -30,6 +30,11 @@ jobs:
         run: |
           dotnet build experiments/wpf-net10/DJLibrary.ModernProbe.csproj -c Release -p:RestoreLockedMode=false --nologo
           if ($LASTEXITCODE -ne 0) { throw 'Modern WPF full-source compatibility build failed' }
+      - name: Verify isolated JSON compatibility with synthetic vectors
+        shell: pwsh
+        run: |
+          dotnet run --project experiments/wpf-net10/JsonCompatibilityProbe.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'JSON compatibility vectors failed' }
       - name: Checkout pinned public native metadata engine
         uses: actions/checkout@v4
         with:

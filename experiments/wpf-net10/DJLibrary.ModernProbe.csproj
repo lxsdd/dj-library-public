@@ -19,5 +19,6 @@
   <ItemGroup>
     <!-- Link every actual production C# source file, not a reduced imitation. -->
     <Compile Include="../../src/*.cs" Link="src/%(Filename)%(Extension)" />
+    <Compile Include="LegacyJsonCompat.cs" />
   </ItemGroup>
 </Project>
