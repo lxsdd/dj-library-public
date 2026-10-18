@@ -28,6 +28,7 @@ internal sealed class ComparisonWindow : Window
         EnableColumnVirtualization = true
     };
     private List<SyntheticTrackRow> _all = new();
+    private readonly HashSet<string> _selectionIds = new(StringComparer.Ordinal);
 
     public ComparisonWindow()
     {
@@ -74,9 +75,19 @@ internal sealed class ComparisonWindow : Window
         parent.Children.Add(button);
     }
 
+    private void PreserveSelection() { foreach (SyntheticTrackRow row in _grid.SelectedItems.OfType<SyntheticTrackRow>()) _selectionIds.Add(row.Identity); }
+
+    private void RestoreSelection()
+    {
+        _grid.SelectedItems.Clear();
+        foreach (var row in SyntheticSelection.Restore(_grid.ItemsSource?.Cast<SyntheticTrackRow>() ?? Enumerable.Empty<SyntheticTrackRow>(), _selectionIds))
+            _grid.SelectedItems.Add(row);
+    }
+
     private void Load(object sender, RoutedEventArgs e)
     {
         var timer = Stopwatch.StartNew();
+        _selectionIds.Clear();
         _all = SyntheticCatalog.Generate(SyntheticCatalog.SupportedSizes[_size.SelectedIndex]);
         _grid.ItemsSource = _all;
         timer.Stop();
@@ -86,8 +97,10 @@ internal sealed class ComparisonWindow : Window
     private void Filter(object sender, RoutedEventArgs e)
     {
         var timer = Stopwatch.StartNew();
+        PreserveSelection();
         var rows = SyntheticCatalog.Filter(_all, _search.Text);
         _grid.ItemsSource = rows;
+        RestoreSelection();
         timer.Stop();
         Report("WPF filter + assignment", timer, rows);
     }
@@ -95,16 +108,20 @@ internal sealed class ComparisonWindow : Window
     private void Sort(object sender, RoutedEventArgs e)
     {
         var timer = Stopwatch.StartNew();
+        PreserveSelection();
         var rows = SyntheticCatalog.SortByTitle(_grid.ItemsSource?.Cast<SyntheticTrackRow>() ?? _all);
         _grid.ItemsSource = rows;
+        RestoreSelection();
         timer.Stop();
         Report("WPF sort + assignment", timer, rows);
     }
 
     private void Clear(object sender, RoutedEventArgs e)
     {
+        PreserveSelection();
         _search.Clear();
         _grid.ItemsSource = _all;
+        RestoreSelection();
         _status.Text = $"Showing all {_all.Count:N0} synthetic rows.";
     }
 
