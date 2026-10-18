@@ -11,6 +11,9 @@ public sealed partial class MainWindow : Window
 
     private void PreserveSelection()
     {
+        var visible = (TracksGrid.ItemsSource as IEnumerable<SyntheticTrackRow> ?? Enumerable.Empty<SyntheticTrackRow>())
+            .Select(row => row.Identity).ToHashSet(StringComparer.Ordinal);
+        _selectionIds.RemoveWhere(visible.Contains);
         foreach (SyntheticTrackRow row in TracksGrid.SelectedItems.OfType<SyntheticTrackRow>())
             _selectionIds.Add(row.Identity);
     }

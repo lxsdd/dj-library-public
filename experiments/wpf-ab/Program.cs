@@ -111,7 +111,16 @@ internal sealed class ComparisonWindow : Window
         parent.Children.Add(button);
     }
 
-    private void PreserveSelection() { foreach (SyntheticTrackRow row in _grid.SelectedItems.OfType<SyntheticTrackRow>()) _selectionIds.Add(row.Identity); }
+    private void PreserveSelection()
+    {
+        // A user's explicit selection change replaces the remembered set.
+        // Only invisible identities survive a filter; never re-add deselected visible rows.
+        var visible = (_grid.ItemsSource?.Cast<SyntheticTrackRow>() ?? Enumerable.Empty<SyntheticTrackRow>())
+            .Select(row => row.Identity).ToHashSet(StringComparer.Ordinal);
+        _selectionIds.RemoveWhere(visible.Contains);
+        foreach (SyntheticTrackRow row in _grid.SelectedItems.OfType<SyntheticTrackRow>())
+            _selectionIds.Add(row.Identity);
+    }
 
     private void RestoreSelection()
     {
