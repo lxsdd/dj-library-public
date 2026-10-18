@@ -130,6 +130,14 @@ internal static class Program
         }
         catch (Exception e)
         {
+            // WinExe has no interactive console. Emit a diagnostics report ONLY when
+            // the isolated Actions harness supplies an explicit temporary path.
+            string reportPath = Environment.GetEnvironmentVariable("WPF_LAYOUT_SMOKE_REPORT");
+            if (!string.IsNullOrWhiteSpace(reportPath))
+            {
+                try { File.WriteAllText(reportPath, e.ToString()); }
+                catch { }
+            }
             Console.Error.WriteLine("FAIL persistence contract: " + e);
             return 1;
         }
