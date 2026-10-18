@@ -9,7 +9,21 @@ namespace DJLibrary.WpfAb;
 internal static class Program
 {
     [STAThread]
-    public static void Main() => new Application().Run(new ComparisonWindow());
+    public static void Main(string[] args)
+    {
+        if (args.Contains("--smoke", StringComparer.Ordinal))
+        {
+            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            var window = new ComparisonWindow();
+            window.Show();
+            window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            window.RunSyntheticSmoke();
+            window.Close();
+            app.Shutdown();
+            return;
+        }
+        new Application().Run(new ComparisonWindow());
+    }
 }
 
 internal sealed class ComparisonWindow : Window
@@ -66,6 +80,28 @@ internal sealed class ComparisonWindow : Window
         root.Children.Add(_grid);
         root.Children.Add(_status);
         Content = root;
+    }
+
+    internal void RunSyntheticSmoke()
+    {
+        foreach (int size in SyntheticCatalog.SupportedSizes)
+        {
+            _size.SelectedIndex = Array.IndexOf(SyntheticCatalog.SupportedSizes, size);
+            Load(this, new RoutedEventArgs());
+            if (_grid.Items.Count != size) throw new InvalidOperationException("WPF DataGrid load count mismatch");
+            _grid.SelectedItem = _all[0];
+            _grid.SelectedItems.Add(_all[size / 2]);
+            _search.Text = "Artist 0001";
+            Filter(this, new RoutedEventArgs());
+            if (_grid.Items.Count == 0) throw new InvalidOperationException("WPF DataGrid filter empty");
+            Sort(this, new RoutedEventArgs());
+            Clear(this, new RoutedEventArgs());
+            if (_grid.Items.Count != size || _grid.SelectedItems.Count != 2)
+                throw new InvalidOperationException("WPF DataGrid selection restore failed");
+            _grid.ScrollIntoView(_all[^1]);
+            _grid.UpdateLayout();
+            Console.WriteLine($"PASS WPF window {size:N0} rows, selection/filter/sort/scroll");
+        }
     }
 
     private static void AddButton(Panel parent, string label, RoutedEventHandler click)

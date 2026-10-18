@@ -39,6 +39,11 @@ jobs:
         run: |
           dotnet build ../wpf-ab/DJLibrary.WpfAb.csproj -c Release --nologo
           if ($LASTEXITCODE -ne 0) { throw 'WPF A/B reference build failed' }
+      - name: Exercise actual WPF window and DataGrid with synthetic catalogs
+        shell: pwsh
+        run: |
+          $process = Start-Process dotnet -ArgumentList @('run','--project','../wpf-ab/DJLibrary.WpfAb.csproj','-c','Release','--no-build','--','--smoke') -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "WPF visible-window smoke failed with exit $($process.ExitCode)" }
       - name: Restore pinned WinUI 3 and TableView dependencies
         shell: pwsh
         run: |
