@@ -49,8 +49,12 @@ jobs:
             if (-not (Test-Path $file)) { throw "Missing $name in $r" }
             $args += "/reference:$file"
           }
-          $args += 'src/HorizontalScrollSupport.cs'
-          $args += 'upstream/mytag/src/RekordboxMyTagSync/HorizontalScrollSupport.cs'
+          # The legacy csc.exe compiler de-duplicates source files by leaf filename;
+          # copy identical-named real sources verbatim to distinct names for this compile only.
+          Copy-Item -LiteralPath 'src/HorizontalScrollSupport.cs' -Destination 'wpf-wheel-dj-library.cs'
+          Copy-Item -LiteralPath 'upstream/mytag/src/RekordboxMyTagSync/HorizontalScrollSupport.cs' -Destination 'wpf-wheel-mytag.cs'
+          $args += 'wpf-wheel-dj-library.cs'
+          $args += 'wpf-wheel-mytag.cs'
           & $fx @args
           if ($LASTEXITCODE -ne 0) { throw 'Legacy WPF dual-source compile failed' }
           if (-not (Test-Path 'wpf-wheel-legacy-compile.dll')) { throw 'Legacy WPF source assembly not found' }
