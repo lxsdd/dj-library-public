@@ -16,6 +16,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../shared/SyntheticCatalog.cs" Link="SyntheticCatalog.cs" />
+    <Compile Include="../shared/SyntheticSelection.cs" Link="SyntheticSelection.cs" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
     <PackageReference Include="WinUI.TableView" Version="1.5.0" />
   </ItemGroup>

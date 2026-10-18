@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../shared/SyntheticCatalog.cs" Link="SyntheticCatalog.cs" />
+    <Compile Include="../shared/SyntheticSelection.cs" Link="SyntheticSelection.cs" />
   </ItemGroup>
 </Project>
