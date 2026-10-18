@@ -93,6 +93,9 @@ jobs:
                 throw "Missing actual WinUI runtime assertion for $size"
               }
             }
+            if (-not $result.Contains('PASS WinUI columns: in-memory JSON')) {
+              throw 'WinUI TableView column round-trip was not executed'
+            }
           }
           finally {
             if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }

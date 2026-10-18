@@ -120,8 +120,11 @@ public sealed partial class MainWindow
                 $"p95 sample {p95Ms:F1} ms (5 samples), filter {filteredCount:N0}, " +
                 "sort, selection/restoration, explicit deselection");
         }
+        // Programmatic column state is a prerequisite to preserving the
+        // user's named grid layout, not a claim of end-user drag/drop parity.
+        evidence.Add(VerifySyntheticColumnStateRoundTrip());
         return string.Join("\n", evidence) +
-            "\nNOT TESTED: monitor display scanout, actual touchpad, packaging, user catalog, " +
-            "multi-monitor DPI, accessibility or visual parity.";
+            "\nNOT TESTED: user drag gestures, native horizontal touchpad, real settings path, " +
+            "monitor scanout, packaging, user catalog, mixed-DPI, accessibility or visual parity.";
     }
 }
