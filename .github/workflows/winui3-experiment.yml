@@ -60,9 +60,38 @@ jobs:
         run: |
           dotnet build DJLibrary.WinUiSpike.csproj -c Release --no-restore
           if ($LASTEXITCODE -ne 0) { throw 'WinUI 3 compile failed' }
+      - name: Launch real WinUI 3 window and verify synthetic TableView runtime
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'winui3-smoke-report.txt'
+          $env:DJLIB_WINUI_SMOKE_REPORT = $report
+          $exe = Join-Path $PWD 'bin/Release/net10.0-windows10.0.19041.0/win-x64/DJLibrary.WinUiSpike.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "No unpackaged WinUI 3 executable at $exe" }
+          $p = Start-Process -FilePath $exe -ArgumentList '--smoke' -PassThru
+          try {
+            if (-not $p.WaitForExit(110000)) { throw 'WinUI 3 real window / TableView smoke timed out' }
+            if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
+            if ($p.ExitCode -ne 0) { throw "WinUI 3 runtime exited with $($p.ExitCode)" }
+            if (-not (Test-Path -LiteralPath $report)) {
+              throw 'WinUI 3 did not reach its OnLaunched smoke-report checkpoint'
+            }
+            $result = Get-Content -LiteralPath $report -Raw
+            if (-not $result.StartsWith("PASS`n")) {
+              throw 'WinUI 3 reported a synthetic TableView runtime failure'
+            }
+            foreach ($size in @('1,345','15,000','54,129','100,000')) {
+              if (-not $result.Contains("PASS $size synthetic")) {
+                throw "Missing actual WinUI runtime assertion for $size"
+              }
+            }
+          }
+          finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            $p.Dispose()
+          }
       - name: Clarify qualification boundary
         shell: pwsh
         run: |
-          Write-Host 'Shared synthetic contracts and both UI binaries compiled at one SHA.'
-          Write-Host 'No visible-frame, real touchpad, DPI, accessibility, deployment or product GUI acceptance yet.'
+          Write-Host 'Shared contracts compiled; real WinUI HWND, TableView layout, selection and next compositor callback executed in synthetic runtime.'
+          Write-Host 'Rendering callback is not physical scanout; actual touchpad, DPI, accessibility, deployment and product GUI acceptance remain open.'
           Write-Host 'No production catalog/DB access or migration authorized.'
