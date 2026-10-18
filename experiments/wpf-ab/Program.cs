@@ -167,6 +167,31 @@ internal sealed partial class ComparisonWindow : Window
         report.Add(resizeReport);
         Console.WriteLine(resizeReport);
 
+        // Both real Windows tables must expose navigable UI Automation Grid
+        // and Selection providers, not merely attach an accessible name.
+        var automationPeer = System.Windows.Automation.Peers.FrameworkElementAutomationPeer
+            .CreatePeerForElement(_grid);
+        if (automationPeer == null)
+            throw new InvalidOperationException("WPF DataGrid automation peer missing");
+        var gridProvider = automationPeer.GetPattern(
+            System.Windows.Automation.Peers.PatternInterface.Grid)
+            as System.Windows.Automation.Provider.IGridProvider;
+        if (gridProvider == null ||
+            gridProvider.RowCount != _grid.Items.Count ||
+            gridProvider.ColumnCount != _grid.Columns.Count)
+            throw new InvalidOperationException(
+                "WPF DataGrid UIA Grid provider missing or shape incorrect");
+        var selectionProvider = automationPeer.GetPattern(
+            System.Windows.Automation.Peers.PatternInterface.Selection)
+            as System.Windows.Automation.Provider.ISelectionProvider;
+        if (selectionProvider == null)
+            throw new InvalidOperationException("WPF DataGrid UIA Selection provider missing");
+        string automationReport =
+            $"PASS WPF accessibility: UIA Grid {gridProvider.RowCount}x{gridProvider.ColumnCount}, " +
+            "Selection pattern (not a physical screen-reader or keyboard acceptance test)";
+        report.Add(automationReport);
+        Console.WriteLine(automationReport);
+
         var path = Environment.GetEnvironmentVariable("DJLIB_WPF_AB_SMOKE_REPORT");
         if (!string.IsNullOrWhiteSpace(path))
             System.IO.File.WriteAllText(path, "PASS\n" + string.Join("\n", report) +
