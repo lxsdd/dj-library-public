@@ -59,10 +59,15 @@ jobs:
       - name: Verify two real WPF windows and XML-only in-memory round-trip
         shell: pwsh
         run: |
+          $report = Join-Path $env:RUNNER_TEMP 'wpf-layout-smoke-error.txt'
+          $env:WPF_LAYOUT_SMOKE_REPORT = $report
           $p = Start-Process dotnet -ArgumentList @('run','--project','experiments/wpf-layout/WindowAndGridPersistence.csproj','-c','Release','--no-build') -PassThru
           try {
             if (-not $p.WaitForExit(85000)) { throw 'Actual-WPF persistence smoke timed out' }
-            if ($p.ExitCode -ne 0) { throw "Actual-WPF persistence smoke failed ($($p.ExitCode))" }
+            if ($p.ExitCode -ne 0) {
+              if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
+              throw "Actual-WPF persistence smoke failed ($($p.ExitCode))"
+            }
           }
           finally {
             if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
