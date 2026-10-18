@@ -128,9 +128,75 @@ public sealed partial class MainWindow
                 throw new InvalidOperationException(
                     "WinUI cannot programmatically scroll to the final synthetic track");
 
+            // Live window resizing is independent from column resizing and
+            // indispensable for large custom DJ tables. Verify the actual
+            // visible TableView viewport/scroll extent and stable identities.
+            var preservedIds = TracksGrid.SelectedItems
+                .OfType<DJLibrary.SyntheticComparison.SyntheticTrackRow>()
+                .Select(row => row.Identity).ToHashSet(StringComparer.Ordinal);
+            int originalWidth = AppWindow.Size.Width;
+            int originalHeight = AppWindow.Size.Height;
+            double originalGrid = TracksGrid.ActualWidth;
+            double originalHorizontal = horizontal.ScrollableWidth;
+            double narrowedGrid = originalGrid, narrowedOverflow = originalHorizontal;
+            try
+            {
+                AppWindow.Resize(new Windows.Graphics.SizeInt32(850, originalHeight));
+                for (int pass = 0; pass < 12; pass++)
+                {
+                    await YieldToUiAsync();
+                    TracksGrid.UpdateLayout();
+                    await AwaitActualFrameAsync();
+                    narrowedGrid = TracksGrid.ActualWidth;
+                    narrowedOverflow = horizontal.ScrollableWidth;
+                    if (narrowedGrid < originalGrid - 60 &&
+                        narrowedOverflow > originalHorizontal + 50) break;
+                }
+                if (narrowedGrid >= originalGrid - 60 ||
+                    narrowedOverflow <= originalHorizontal + 50)
+                    throw new InvalidOperationException(
+                        $"WinUI live outer-window resize did not adjust rendered TableView/scroll range: " +
+                        $"grid={originalGrid:F0}->{narrowedGrid:F0}, " +
+                        $"horizontal={originalHorizontal:F0}->{narrowedOverflow:F0}, " +
+                        $"actualWindowWidth={AppWindow.Size.Width}");
+
+                AppWindow.Resize(new Windows.Graphics.SizeInt32(originalWidth, originalHeight));
+                double restoredGrid = narrowedGrid;
+                double restoredOverflow = narrowedOverflow;
+                for (int pass = 0; pass < 12; pass++)
+                {
+                    await YieldToUiAsync();
+                    TracksGrid.UpdateLayout();
+                    await AwaitActualFrameAsync();
+                    restoredGrid = TracksGrid.ActualWidth;
+                    restoredOverflow = horizontal.ScrollableWidth;
+                    if (Math.Abs(restoredGrid - originalGrid) < 5 &&
+                        Math.Abs(restoredOverflow - originalHorizontal) < 8) break;
+                }
+                if (Math.Abs(restoredGrid - originalGrid) >= 5 ||
+                    Math.Abs(restoredOverflow - originalHorizontal) >= 8)
+                    throw new InvalidOperationException(
+                        $"WinUI window resize restoration lost viewport/scroll: " +
+                        $"grid={originalGrid:F0}->{restoredGrid:F0}, " +
+                        $"horizontal={originalHorizontal:F0}->{restoredOverflow:F0}");
+
+                var selectedAfterResize = TracksGrid.SelectedItems
+                    .OfType<DJLibrary.SyntheticComparison.SyntheticTrackRow>()
+                    .Select(row => row.Identity).ToHashSet(StringComparer.Ordinal);
+                if (!selectedAfterResize.SetEquals(preservedIds))
+                    throw new InvalidOperationException(
+                        "WinUI live window resize changed selected track identities");
+            }
+            finally
+            {
+                AppWindow.Resize(new Windows.Graphics.SizeInt32(originalWidth, originalHeight));
+            }
+
             return "PASS WinUI scrolling: rendered horizontal overflow, offsets/right edge, " +
                 "ScrollIntoView(final of 100,000 tracks), vertical offset advanced " +
-                $"(horizontal max {horizontal.ScrollableWidth:F0}; vertical {vertical.VerticalOffset:F0})";
+                $"(horizontal max {horizontal.ScrollableWidth:F0}; vertical {vertical.VerticalOffset:F0}); " +
+                $"PASS WinUI live window resize: viewport {originalGrid:F0}->{narrowedGrid:F0}->{TracksGrid.ActualWidth:F0}, " +
+                "horizontal extent tracks the window and selected identities preserved";
         }
         finally
         {
