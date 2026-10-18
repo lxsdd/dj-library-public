@@ -33,7 +33,7 @@ public sealed partial class MainWindow : Window
                 "synthetic-" + n.ToString("D7"),
                 "Artist " + (n % 1100).ToString("D4"),
                 "Track " + n.ToString("D6"),
-                n % 4 switch { 0 => "House", 1 => "Trance", 2 => "Techno", _ => "Other" },
+                (n % 4) switch { 0 => "House", 1 => "Trance", 2 => "Techno", _ => "Other" },
                 (1990 + n % 37).ToString(),
                 $"{3 + n % 7:00}:{n % 60:00}"));
         }
