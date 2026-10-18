@@ -89,6 +89,17 @@ public sealed partial class MainWindow
             await AwaitActualFrameAsync();
             await YieldToUiAsync();
             double afterResize = horizontal.ScrollableWidth;
+            // WinUI's TableView column realization and its ScrollViewer extent
+            // can settle on different compositor/dispatcher passes. Give the
+            // actual HWND bounded frame opportunities rather than asserting
+            // the first frame must already contain the new extent.
+            for (int pass = 0; pass < 12 && afterResize < beforeResize + 60; pass++)
+            {
+                await YieldToUiAsync();
+                TracksGrid.UpdateLayout();
+                await AwaitActualFrameAsync();
+                afterResize = horizontal.ScrollableWidth;
+            }
             if (afterResize < beforeResize + 60)
                 throw new InvalidOperationException(
                     $"Live column resize failed to expand horizontal scroll range: " +
