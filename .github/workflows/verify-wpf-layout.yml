@@ -1,0 +1,69 @@
+name: Verify WPF geometry and grid persistence
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/wpf-layout/**'
+      - '.github/workflows/verify-wpf-layout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-wpf-layout-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  real-wpf-layout:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Legacy .NET Framework 4.8 compile of actual persistence sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fx = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path -LiteralPath $fx)) { throw 'Missing .NET Framework compiler' }
+          $r = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8"
+          $a = @('PresentationFramework','PresentationCore','WindowsBase','System.Xaml')
+          $args = @('/nologo','/target:library','/out:wpf-layout-legacy.dll')
+          foreach ($n in $a) {
+            $f = Join-Path $r "$n.dll"
+            if (-not (Test-Path -LiteralPath $f)) { throw "Missing .NET Framework WPF reference: $f" }
+            $args += "/reference:$f"
+          }
+          $args += 'src/Settings.cs'
+          $args += 'src/GridLayoutSettings.cs'
+          $args += 'src/WindowGeometrySettings.cs'
+          $args += 'experiments/wpf-layout/Fixtures.cs'
+          & $fx @args
+          if ($LASTEXITCODE -ne 0) { throw 'Production WPF persistence source not compatible with .NET Framework' }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Build actual persistence sources in modern WPF
+        shell: pwsh
+        run: |
+          dotnet build experiments/wpf-layout/WindowAndGridPersistence.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Modern WPF actual-source compile failed' }
+      - name: Verify two real WPF windows and XML-only in-memory round-trip
+        shell: pwsh
+        run: |
+          $p = Start-Process dotnet -ArgumentList @('run','--project','experiments/wpf-layout/WindowAndGridPersistence.csproj','-c','Release','--no-build') -PassThru
+          try {
+            if (-not $p.WaitForExit(85000)) { throw 'Actual-WPF persistence smoke timed out' }
+            if ($p.ExitCode -ne 0) { throw "Actual-WPF persistence smoke failed ($($p.ExitCode))" }
+          }
+          finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            $p.Dispose()
+          }
+      - name: Qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'PASS: original production WPF layout sources compile on both runtimes and synthetic real windows round-trip in-memory state.'
+          Write-Host 'PENDING: real consumer settings file writes, event wiring, DPI, multi-monitor and end-user GUI acceptance.'
