@@ -35,6 +35,8 @@
                  Severity="Informational" Title="Comparable synthetic model operations"
                  Message="Both UI prototypes use the same generator/filter/sort source. Elapsed times exclude visible frame rendering." />
         <tv:TableView Grid.Row="3" x:Name="TracksGrid" AutoGenerateColumns="False"
+                      AutomationProperties.Name="DJ Library synthetic track table"
+                      AutomationProperties.HelpText="Read-only synthetic track results. Filter and sort using the controls above."
                       IsReadOnly="True" SelectionMode="Extended">
             <tv:TableView.Columns>
                 <tv:TableViewTextColumn Header="Identity" Binding="{Binding Identity}" />

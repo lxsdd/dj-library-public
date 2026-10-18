@@ -123,6 +123,7 @@ public sealed partial class MainWindow
         // Programmatic column state is a prerequisite to preserving the
         // user's named grid layout, not a claim of end-user drag/drop parity.
         evidence.Add(VerifySyntheticColumnStateRoundTrip());
+        evidence.Add(VerifyTableAccessibilityContract());
         return string.Join("\n", evidence) +
             "\nNOT TESTED: user drag gestures, native horizontal touchpad, real settings path, " +
             "monitor scanout, packaging, user catalog, mixed-DPI, accessibility or visual parity.";
