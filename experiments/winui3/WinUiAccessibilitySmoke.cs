@@ -25,7 +25,24 @@ public sealed partial class MainWindow
                 "WinUI UI Automation peer name mismatch: " + actualName);
 
         var type = peer.GetAutomationControlType();
+        var grid = peer.GetPattern(PatternInterface.Grid) as
+            Microsoft.UI.Xaml.Automation.Provider.IGridProvider;
+        if (grid == null)
+            throw new InvalidOperationException(
+                "WinUI TableView has no actual UI Automation Grid pattern provider");
+        if (grid.RowCount != TracksGrid.Items.Count || grid.ColumnCount != TracksGrid.Columns.Count)
+            throw new InvalidOperationException(
+                $"WinUI UIA Grid shape differs from runtime: " +
+                $"provider={grid.RowCount}x{grid.ColumnCount}, " +
+                $"table={TracksGrid.Items.Count}x{TracksGrid.Columns.Count}");
+        var selection = peer.GetPattern(PatternInterface.Selection) as
+            Microsoft.UI.Xaml.Automation.Provider.ISelectionProvider;
+        if (selection == null)
+            throw new InvalidOperationException(
+                "WinUI TableView has no actual UI Automation Selection pattern provider");
+
         return $"PASS WinUI accessibility: real TableView automation peer, " +
-            $"stable name and declared control type {type} (not screen-reader acceptance)";
+            $"stable name, control type {type}, UIA Grid {grid.RowCount}x{grid.ColumnCount}, " +
+            "Selection pattern (not a physical screen-reader or keyboard acceptance test)";
     }
 }
