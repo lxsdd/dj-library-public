@@ -81,6 +81,10 @@ public sealed partial class MainWindow
             double beforeResize = horizontal.ScrollableWidth;
             double oldWidth = TracksGrid.Columns[0].Width.Value;
             TracksGrid.Columns[0].Width = new GridLength(oldWidth + 120, GridUnitType.Pixel);
+            // WinUI.TableView's own live/preview resize code commits BOTH
+            // ActualWidth and Width. Calling only Width is not a supported
+            // equivalent of its realized-column resize path.
+            TracksGrid.Columns[0].ActualWidth = oldWidth + 120;
             TracksGrid.UpdateLayout();
             await AwaitActualFrameAsync();
             await YieldToUiAsync();
