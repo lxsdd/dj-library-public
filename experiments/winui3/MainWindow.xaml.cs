@@ -28,6 +28,10 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Both A/B applications request the same 1000 x 780 outer-window size.
+        // The Windows host may clamp it; each smoke records its ACTUAL
+        // grid viewport to prevent unsupported performance conclusions.
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1000, 780));
     }
 
     private static int RowCount(int selectedIndex) =>

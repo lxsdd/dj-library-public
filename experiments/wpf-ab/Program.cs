@@ -47,7 +47,7 @@ internal sealed partial class ComparisonWindow : Window
     public ComparisonWindow()
     {
         Title = "DJ Library — WPF .NET 10 synthetic A/B workspace";
-        Width = 1200;
+        Width = 1000;
         Height = 780;
         MinWidth = 700;
         MinHeight = 400;

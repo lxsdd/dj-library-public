@@ -63,7 +63,7 @@ public sealed partial class MainWindow
             var frameMs = await AwaitActualFrameAsync();
             await YieldToUiAsync();
 
-            if (TracksGrid.ActualWidth < 50 || TracksGrid.ActualHeight < 50)
+            if (TracksGrid.ActualWidth < 700 || TracksGrid.ActualHeight < 400)
                 throw new InvalidOperationException(
                     $"WinUI TableView did not become laid out at {size:N0} rows: " +
                     $"{TracksGrid.ActualWidth}x{TracksGrid.ActualHeight}");
