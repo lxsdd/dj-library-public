@@ -42,10 +42,19 @@ jobs:
       - name: Exercise actual WPF window and DataGrid with synthetic catalogs
         shell: pwsh
         run: |
+          $wpfReport = Join-Path $env:RUNNER_TEMP 'wpf-ab-compositor-report.txt'
+          $env:DJLIB_WPF_AB_SMOKE_REPORT = $wpfReport
           $process = Start-Process dotnet -ArgumentList @('run','--project','../wpf-ab/DJLibrary.WpfAb.csproj','-c','Release','--no-build','--','--smoke') -PassThru
           try {
             if (-not $process.WaitForExit(90000)) { throw 'WPF visible-window smoke timed out after 90 seconds' }
+            if (Test-Path -LiteralPath $wpfReport) { Get-Content -LiteralPath $wpfReport }
             if ($process.ExitCode -ne 0) { throw "WPF visible-window smoke failed with exit $($process.ExitCode)" }
+            if (-not (Test-Path -LiteralPath $wpfReport)) { throw 'WPF compositor smoke report missing' }
+            $txt = Get-Content -LiteralPath $wpfReport -Raw
+            if (-not $txt.StartsWith("PASS`n")) { throw 'WPF window compositor smoke did not pass' }
+            foreach ($n in @('1,345','15,000','54,129','100,000')) {
+              if (-not $txt.Contains("PASS $n synthetic")) { throw "WPF compositor report missing $n" }
+            }
           } finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
             $process.Dispose()

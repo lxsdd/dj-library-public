@@ -26,7 +26,7 @@ internal static class Program
     }
 }
 
-internal sealed class ComparisonWindow : Window
+internal sealed partial class ComparisonWindow : Window
 {
     private readonly ComboBox _size = new ComboBox { Width = 100, SelectedIndex = 2 };
     private readonly TextBox _search = new TextBox { Width = 260, Margin = new Thickness(4, 0, 4, 0) };
@@ -84,10 +84,16 @@ internal sealed class ComparisonWindow : Window
 
     internal void RunSyntheticSmoke()
     {
+        var report = new List<string>();
         foreach (int size in SyntheticCatalog.SupportedSizes)
         {
             _size.SelectedIndex = Array.IndexOf(SyntheticCatalog.SupportedSizes, size);
             Load(this, new RoutedEventArgs());
+            // Same event boundary as WinUI probe: item assignment is done;
+            // wait until the next real WPF compositor Rendering callback.
+            double frameMs = WaitForNextRenderingCallback();
+            if (_grid.ActualWidth < 50 || _grid.ActualHeight < 50)
+                throw new InvalidOperationException("WPF DataGrid has no rendered layout");
             if (_grid.Items.Count != size) throw new InvalidOperationException("WPF DataGrid load count mismatch");
             _grid.SelectedItem = _all[0];
             _grid.SelectedItems.Add(_all[size / 2]);
@@ -107,8 +113,16 @@ internal sealed class ComparisonWindow : Window
                 throw new InvalidOperationException("WPF explicit deselection was not honored");
             _grid.ScrollIntoView(_all[^1]);
             _grid.UpdateLayout();
-            Console.WriteLine($"PASS WPF window {size:N0} rows, selection/filter/sort/scroll");
+            var outcome = $"PASS {size:N0} synthetic WPF DataGrid rows, real window layout " +
+                $"{_grid.ActualWidth:F0}x{_grid.ActualHeight:F0}, next compositor Rendering callback " +
+                $"{frameMs:F1} ms, selection/filter/sort/scroll/explicit deselection";
+            report.Add(outcome);
+            Console.WriteLine(outcome);
         }
+        var path = Environment.GetEnvironmentVariable("DJLIB_WPF_AB_SMOKE_REPORT");
+        if (!string.IsNullOrWhiteSpace(path))
+            System.IO.File.WriteAllText(path, "PASS\n" + string.Join("\n", report) +
+                "\nNOT TESTED: actual monitor scanout, physical touchpad or visual frame pacing.");
     }
 
     private static void AddButton(Panel parent, string label, RoutedEventHandler click)
