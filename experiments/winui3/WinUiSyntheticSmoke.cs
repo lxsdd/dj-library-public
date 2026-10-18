@@ -59,8 +59,15 @@ public sealed partial class MainWindow
         foreach (int size in SyntheticCatalog.SupportedSizes)
         {
             SizeSelector.SelectedIndex = Array.IndexOf(SyntheticCatalog.SupportedSizes, size);
-            Load_Click(this, new RoutedEventArgs());
-            var frameMs = await AwaitActualFrameAsync();
+            var samples = new List<double>();
+            for (int repeat = 0; repeat < 5; repeat++)
+            {
+                Load_Click(this, new RoutedEventArgs());
+                samples.Add(await AwaitActualFrameAsync());
+            }
+            samples.Sort();
+            double frameMs = samples[2];
+            double p95Ms = samples[4];
             await YieldToUiAsync();
 
             if (TracksGrid.ActualWidth < 700 || TracksGrid.ActualHeight < 400)
@@ -109,8 +116,9 @@ public sealed partial class MainWindow
             evidence.Add(
                 $"PASS {size:N0} synthetic WinUI TableView rows, real window layout " +
                 $"{TracksGrid.ActualWidth:F0}x{TracksGrid.ActualHeight:F0}, " +
-                $"next compositor Rendering callback {frameMs:F1} ms, " +
-                $"filter {filteredCount:N0}, sort, selection/restoration, explicit deselection");
+                $"next compositor callback median {frameMs:F1} ms, " +
+                $"p95 sample {p95Ms:F1} ms (5 samples), filter {filteredCount:N0}, " +
+                "sort, selection/restoration, explicit deselection");
         }
         return string.Join("\n", evidence) +
             "\nNOT TESTED: monitor display scanout, actual touchpad, packaging, user catalog, " +

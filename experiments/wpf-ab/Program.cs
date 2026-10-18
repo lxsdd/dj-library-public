@@ -48,7 +48,7 @@ internal sealed partial class ComparisonWindow : Window
     {
         Title = "DJ Library — WPF .NET 10 synthetic A/B workspace";
         Width = 1000;
-        Height = 780;
+        Height = 590;
         MinWidth = 700;
         MinHeight = 400;
         foreach (int count in SyntheticCatalog.SupportedSizes) _size.Items.Add(count.ToString("N0"));
@@ -88,10 +88,16 @@ internal sealed partial class ComparisonWindow : Window
         foreach (int size in SyntheticCatalog.SupportedSizes)
         {
             _size.SelectedIndex = Array.IndexOf(SyntheticCatalog.SupportedSizes, size);
-            Load(this, new RoutedEventArgs());
-            // Same event boundary as WinUI probe: item assignment is done;
-            // wait until the next real WPF compositor Rendering callback.
-            double frameMs = WaitForNextRenderingCallback();
+            var samples = new List<double>();
+            for (int repeat = 0; repeat < 5; repeat++)
+            {
+                Load(this, new RoutedEventArgs());
+                // This is a compositor callback, NOT a physically presented frame.
+                samples.Add(WaitForNextRenderingCallback());
+            }
+            samples.Sort();
+            double frameMs = samples[2];
+            double p95Ms = samples[4];
             if (_grid.ActualWidth < 50 || _grid.ActualHeight < 50)
                 throw new InvalidOperationException("WPF DataGrid has no rendered layout");
             if (_grid.Items.Count != size) throw new InvalidOperationException("WPF DataGrid load count mismatch");
@@ -115,7 +121,8 @@ internal sealed partial class ComparisonWindow : Window
             _grid.UpdateLayout();
             var outcome = $"PASS {size:N0} synthetic WPF DataGrid rows, real window layout " +
                 $"{_grid.ActualWidth:F0}x{_grid.ActualHeight:F0}, next compositor Rendering callback " +
-                $"{frameMs:F1} ms, selection/filter/sort/scroll/explicit deselection";
+                $"median {frameMs:F1} ms, p95 sample {p95Ms:F1} ms (5 samples), " +
+                "selection/filter/sort/scroll/explicit deselection";
             report.Add(outcome);
             Console.WriteLine(outcome);
         }
