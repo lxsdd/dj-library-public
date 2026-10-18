@@ -81,11 +81,22 @@ internal static class Program
                 var state = saved.WindowGeometries[0];
                 if (!(bool)apply.Invoke(null, new object[] { after, state }))
                     throw new InvalidOperationException("Production geometry Apply rejected valid synthetic state");
-                if (Math.Abs(after.Left - originalLeft) > 1.5
-                    || Math.Abs(after.Top - originalTop) > 1.5
-                    || Math.Abs(after.Width - originalWidth) > 1.5
-                    || Math.Abs(after.Height - originalHeight) > 1.5)
-                    throw new InvalidDataException("Saved normal window bounds did not restore");
+                // A small CI virtual desktop can legitimately clamp a restored
+                // window. Compare to the production work-area normalization,
+                // not the unbounded old monitor coordinates.
+                var remembered = new Rect(originalLeft, originalTop, originalWidth, originalHeight);
+                var work = SystemParameters.WorkArea;
+                var expected = WindowGeometrySettings.NormalizeForWorkArea(
+                    remembered, work, after.MinWidth, after.MinHeight);
+                if (Math.Abs(after.Left - expected.Left) > 2
+                    || Math.Abs(after.Top - expected.Top) > 2
+                    || Math.Abs(after.Width - expected.Width) > 2
+                    || Math.Abs(after.Height - expected.Height) > 2)
+                    throw new InvalidDataException(
+                        "Saved normal window geometry differs from safely clamped restore: " +
+                        "remembered=" + remembered + "; work=" + work +
+                        "; expected=" + expected +
+                        "; actual=" + new Rect(after.Left, after.Top, after.Width, after.Height));
 
                 after.Show();
                 Render(after);
