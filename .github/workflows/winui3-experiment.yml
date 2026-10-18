@@ -101,6 +101,73 @@ jobs:
             if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
             $p.Dispose()
           }
+      - name: Verify isolated self-contained WPF and WinUI folder deployment
+        shell: pwsh
+        run: |
+          # No artifact upload, no release, no real catalog/user settings.
+          # Only the runner's disposable temporary directories are used.
+          $ErrorActionPreference = 'Stop'
+          $wpfDir = Join-Path $env:RUNNER_TEMP 'djlib-wpf-ab-portable'
+          $winDir = Join-Path $env:RUNNER_TEMP 'djlib-winui-ab-portable'
+          dotnet publish ../wpf-ab/DJLibrary.WpfAb.csproj -c Release -r win-x64 --self-contained true -o $wpfDir --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'WPF self-contained publish failed' }
+          dotnet publish DJLibrary.WinUiSpike.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=false -o $winDir --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'WinUI 3 self-contained publish failed' }
+          foreach ($pair in @(@($wpfDir,'DJLibrary.WpfAb.exe'),@($winDir,'DJLibrary.WinUiSpike.exe'))) {
+            $dir = $pair[0]
+            $exe = Join-Path $dir $pair[1]
+            if (-not (Test-Path -LiteralPath $exe)) { throw "No published executable: $exe" }
+            foreach ($name in @('coreclr.dll','hostfxr.dll')) {
+              if (-not (Test-Path -LiteralPath (Join-Path $dir $name))) {
+                throw "Missing self-contained .NET runtime dependency $name in $dir"
+              }
+            }
+            $count = @(Get-ChildItem -LiteralPath $dir -File -Recurse).Count
+            $bytes = (Get-ChildItem -LiteralPath $dir -File -Recurse | Measure-Object Length -Sum).Sum
+            Write-Host "PUBLISHED $($pair[1]): $count files, $([math]::Round($bytes / 1MB, 1)) MiB (not compressed download size)"
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $winDir 'WinUI.TableView.dll'))) {
+            throw 'Published WinUI 3 TableView assembly missing'
+          }
+          $wpfReport = Join-Path $env:RUNNER_TEMP 'wpf-published-smoke.txt'
+          $env:DJLIB_WPF_AB_SMOKE_REPORT = $wpfReport
+          $p = Start-Process -FilePath (Join-Path $wpfDir 'DJLibrary.WpfAb.exe') -ArgumentList '--smoke' -PassThru
+          try {
+            if (-not $p.WaitForExit(90000)) { throw 'Published WPF app timed out' }
+            if ($p.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $wpfReport)) {
+              throw "Published WPF runtime failed, exit $($p.ExitCode)"
+            }
+            $text = Get-Content -LiteralPath $wpfReport -Raw
+            if (-not $text.StartsWith("PASS`n") -or -not $text.Contains('PASS 100,000 synthetic WPF')) {
+              throw 'Published WPF failed real window synthetic runtime assertions'
+            }
+          }
+          finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            $p.Dispose()
+          }
+          $winReport = Join-Path $env:RUNNER_TEMP 'winui-published-smoke.txt'
+          $env:DJLIB_WINUI_SMOKE_REPORT = $winReport
+          $p = Start-Process -FilePath (Join-Path $winDir 'DJLibrary.WinUiSpike.exe') -ArgumentList '--smoke' -PassThru
+          try {
+            if (-not $p.WaitForExit(110000)) { throw 'Published WinUI 3 app timed out' }
+            if (Test-Path -LiteralPath $winReport) { Get-Content -LiteralPath $winReport }
+            if ($p.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $winReport)) {
+              throw "Published WinUI 3 runtime failed, exit $($p.ExitCode)"
+            }
+            $text = Get-Content -LiteralPath $winReport -Raw
+            if (-not $text.StartsWith("PASS`n") -or
+                -not $text.Contains('PASS 100,000 synthetic WinUI') -or
+                -not $text.Contains('PASS WinUI columns: in-memory JSON')) {
+              throw 'Published WinUI 3 failed real window synthetic runtime assertions'
+            }
+          }
+          finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            $p.Dispose()
+          }
+          Write-Host 'PASS: same-runner folder-local self-contained startup and synthetic windows.'
+          Write-Host 'NOT TESTED: clean Windows 10/11 machine, physical touchpad, GPU composition scanout, UAC or product data.'
       - name: Clarify qualification boundary
         shell: pwsh
         run: |
