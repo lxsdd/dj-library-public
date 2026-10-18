@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'experiments/winui3/**'
+      - 'experiments/shared/**'
+      - 'experiments/wpf-ab/**'
+      - 'experiments/synthetic-contract/**'
       - '.github/workflows/winui3-experiment.yml'
   workflow_dispatch:
 
@@ -26,6 +29,16 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.401'
+      - name: Verify identical deterministic fixture/filter/sort contracts
+        shell: pwsh
+        run: |
+          dotnet run --project ../synthetic-contract/SyntheticContract.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Shared fixture contract failed' }
+      - name: Compile WPF .NET 10 reference UI with identical model source
+        shell: pwsh
+        run: |
+          dotnet build ../wpf-ab/DJLibrary.WpfAb.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'WPF A/B reference build failed' }
       - name: Restore pinned WinUI 3 and TableView dependencies
         shell: pwsh
         run: |
@@ -39,5 +52,6 @@ jobs:
       - name: Clarify qualification boundary
         shell: pwsh
         run: |
-          Write-Host 'Source-compilation result only: no production catalog/DB, no visual or runtime PASS.'
-          Write-Host 'Do not merge as a replacement for the existing WPF app.'
+          Write-Host 'Shared synthetic contracts and both UI binaries compiled at one SHA.'
+          Write-Host 'No visible-frame, real touchpad, DPI, accessibility, deployment or product GUI acceptance yet.'
+          Write-Host 'No production catalog/DB access or migration authorized.'

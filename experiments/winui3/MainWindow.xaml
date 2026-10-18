@@ -12,14 +12,11 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-
         <StackPanel Grid.Row="0" Spacing="4">
-            <TextBlock Text="DJ Library / WinUI 3 comparison"
-                       FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="DJ Library / WinUI 3 comparison" FontSize="24" FontWeight="SemiBold" />
             <TextBlock Text="Synthetic tracks only. No catalog, music files, bridge or rekordbox database is opened."
                        TextWrapping="Wrap" />
         </StackPanel>
-
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
             <ComboBox x:Name="SizeSelector" Header="Synthetic tracks" SelectedIndex="2">
                 <ComboBoxItem Content="1,345" />
@@ -31,18 +28,14 @@
             <TextBox x:Name="SearchBox" Header="Artist or title" Width="260"
                      PlaceholderText="Case-insensitive match" />
             <Button Content="Apply filter" Click="Filter_Click" VerticalAlignment="Bottom" />
+            <Button Content="Sort by title" Click="Sort_Click" VerticalAlignment="Bottom" />
             <Button Content="Show all" Click="Clear_Click" VerticalAlignment="Bottom" />
         </StackPanel>
-
         <InfoBar Grid.Row="2" IsOpen="True" IsClosable="False"
-                 Severity="Informational"
-                 Title="Source-only performance comparison"
-                 Message="The elapsed time measures synthetic model creation/filtering and ItemsSource assignment, not complete visual frame rendering." />
-
-        <tv:TableView Grid.Row="3" x:Name="TracksGrid"
-                      AutoGenerateColumns="False"
-                      IsReadOnly="True"
-                      SelectionMode="Extended">
+                 Severity="Informational" Title="Comparable synthetic model operations"
+                 Message="Both UI prototypes use the same generator/filter/sort source. Elapsed times exclude visible frame rendering." />
+        <tv:TableView Grid.Row="3" x:Name="TracksGrid" AutoGenerateColumns="False"
+                      IsReadOnly="True" SelectionMode="Extended">
             <tv:TableView.Columns>
                 <tv:TableViewTextColumn Header="Identity" Binding="{Binding Identity}" />
                 <tv:TableViewTextColumn Header="Artist" Binding="{Binding Artist}" />
@@ -52,7 +45,6 @@
                 <tv:TableViewTextColumn Header="Duration" Binding="{Binding Duration}" />
             </tv:TableView.Columns>
         </tv:TableView>
-
         <TextBlock Grid.Row="4" x:Name="StatusText" TextWrapping="Wrap"
                    Text="No synthetic data loaded. Production DJ Library remains unchanged." />
     </Grid>
