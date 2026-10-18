@@ -126,6 +126,47 @@ internal sealed partial class ComparisonWindow : Window
             report.Add(outcome);
             Console.WriteLine(outcome);
         }
+
+        // Match the WinUI TableView synthetic run: resize an already rendered
+        // real HWND after filling 100,000 rows, and verify no identity loss.
+        double oldWidth = Width, initialGrid = _grid.ActualWidth;
+        var initialIds = _grid.SelectedItems.Cast<SyntheticTrackRow>()
+            .Select(row => row.Identity).ToHashSet(StringComparer.Ordinal);
+        double reducedGrid;
+        try
+        {
+            Width = 850;
+            for (int attempt = 0; attempt < 12; attempt++)
+            {
+                _grid.Dispatcher.Invoke(() => { },
+                    System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                _grid.UpdateLayout();
+                if (_grid.ActualWidth < initialGrid - 60) break;
+            }
+            reducedGrid = _grid.ActualWidth;
+            if (reducedGrid >= initialGrid - 60)
+                throw new InvalidOperationException(
+                    $"WPF live HWND resize did not reduce DataGrid viewport: {initialGrid:F0}->{reducedGrid:F0}");
+        }
+        finally
+        {
+            Width = oldWidth;
+            _grid.UpdateLayout();
+            _grid.Dispatcher.Invoke(() => { },
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        }
+        if (Math.Abs(_grid.ActualWidth - initialGrid) > 5)
+            throw new InvalidOperationException("WPF window viewport failed to restore after resize");
+        var finalIds = _grid.SelectedItems.Cast<SyntheticTrackRow>()
+            .Select(row => row.Identity).ToHashSet(StringComparer.Ordinal);
+        if (!finalIds.SetEquals(initialIds))
+            throw new InvalidOperationException("WPF live window resize changed selected track identities");
+        string resizeReport =
+            $"PASS WPF live window resize: DataGrid {initialGrid:F0}->{reducedGrid:F0}->{_grid.ActualWidth:F0}, " +
+            "selected track identities preserved";
+        report.Add(resizeReport);
+        Console.WriteLine(resizeReport);
+
         var path = Environment.GetEnvironmentVariable("DJLIB_WPF_AB_SMOKE_REPORT");
         if (!string.IsNullOrWhiteSpace(path))
             System.IO.File.WriteAllText(path, "PASS\n" + string.Join("\n", report) +
