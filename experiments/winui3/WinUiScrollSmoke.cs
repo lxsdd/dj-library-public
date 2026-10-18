@@ -44,9 +44,16 @@ public sealed partial class MainWindow
                 .FirstOrDefault();
 
             if (horizontal == null || vertical == null)
+            {
+                string diagnostics = string.Join("; ", scrolls.Select((s, index) =>
+                    $"viewer[{index}] viewport={s.ViewportWidth:F0}x{s.ViewportHeight:F0} " +
+                    $"extent={s.ExtentWidth:F0}x{s.ExtentHeight:F0} " +
+                    $"scrollable={s.ScrollableWidth:F0}x{s.ScrollableHeight:F0} " +
+                    $"offset={s.HorizontalOffset:F0},{s.VerticalOffset:F0}"));
                 throw new InvalidOperationException(
-                    "Real TableView did not expose horizontally and vertically scrollable viewers " +
-                    $"after forcing wide columns: found {scrolls.Count} ScrollViewers");
+                    "Real TableView did not expose both scroll directions after forcing " +
+                    $"250-pixel columns; {scrolls.Count} viewer(s): {diagnostics}");
+            }
 
             horizontal.ChangeView(120, null, null, true);
             await AwaitActualFrameAsync();
