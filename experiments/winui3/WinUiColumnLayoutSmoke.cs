@@ -29,6 +29,29 @@ public sealed partial class MainWindow
             snapshot.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != snapshot.Length)
             throw new InvalidOperationException("WinUI named column state is incomplete or duplicated");
 
+        // Validate ALL incoming settings before moving/resizing any visible
+        // column. A partially corrupt user-profile layout is not allowed to
+        // leave the current table in a half-applied state.
+        var existingKeys = current.Select(c => c.Header?.ToString() ?? string.Empty)
+            .OrderBy(k => k, StringComparer.Ordinal).ToArray();
+        var incomingKeys = snapshot.Select(c => c.Key)
+            .OrderBy(k => k, StringComparer.Ordinal).ToArray();
+        if (!existingKeys.SequenceEqual(incomingKeys, StringComparer.Ordinal))
+            throw new InvalidOperationException("WinUI saved column keys do not match the current schema");
+        if (!snapshot.Select(c => c.DisplayIndex).OrderBy(i => i)
+            .SequenceEqual(Enumerable.Range(0, current.Count)))
+            throw new InvalidOperationException("WinUI saved column indexes are not a valid permutation");
+        foreach (var state in snapshot)
+        {
+            if (!Enum.TryParse<GridUnitType>(state.WidthUnit, out var unit) ||
+                !Enum.IsDefined(unit) ||
+                double.IsNaN(state.Width) || double.IsInfinity(state.Width) ||
+                (unit == GridUnitType.Pixel && state.Width <= 0) ||
+                (unit == GridUnitType.Star && state.Width <= 0))
+                throw new InvalidOperationException(
+                    "WinUI saved column has an invalid width: " + state.Key);
+        }
+
         foreach (var state in snapshot.OrderBy(x => x.DisplayIndex))
         {
             int index = -1;
@@ -80,7 +103,34 @@ public sealed partial class MainWindow
                 "WinUI column state did not restore order, width unit and visibility");
 
         ApplyColumns(original);
+
+        // Invalid persisted layouts must be rejected atomically. Verify no
+        // partial mutation of the already-rendered table on each failure.
+        var stable = CaptureColumns();
+        AssertRejectedLayout(stable.Select((x, i) =>
+            i == 1 ? x with { Key = stable[0].Key } : x).ToArray(), "duplicate key");
+        AssertRejectedLayout(stable.Select((x, i) =>
+            i == 1 ? x with { Key = "UnknownDeletedColumn" } : x).ToArray(), "unknown column");
+        AssertRejectedLayout(stable.Select((x, i) =>
+            i == 1 ? x with { DisplayIndex = 0 } : x).ToArray(), "duplicate display index");
+        AssertRejectedLayout(stable.Select((x, i) =>
+            i == 1 ? x with { WidthUnit = "UnknownWidthUnit" } : x).ToArray(), "invalid width unit");
+
         return "PASS WinUI columns: in-memory JSON, programmatic reorder, pixel/Star/Auto widths, " +
-            "visibility and exact restore to original state";
+            "visibility and exact restore to original state; corrupt snapshots rejected without mutation";
+    }
+
+    private void AssertRejectedLayout(ColumnState[] corrupt, string scenario)
+    {
+        var before = JsonSerializer.Serialize(CaptureColumns());
+        bool rejected = false;
+        try { ApplyColumns(corrupt); }
+        catch (InvalidOperationException) { rejected = true; }
+        if (!rejected)
+            throw new InvalidOperationException(
+                "WinUI corrupt column snapshot not rejected: " + scenario);
+        if (!string.Equals(before, JsonSerializer.Serialize(CaptureColumns()), StringComparison.Ordinal))
+            throw new InvalidOperationException(
+                "WinUI corrupt column snapshot caused partial mutation: " + scenario);
     }
 }
