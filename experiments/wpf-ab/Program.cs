@@ -98,6 +98,13 @@ internal sealed class ComparisonWindow : Window
             Clear(this, new RoutedEventArgs());
             if (_grid.Items.Count != size || _grid.SelectedItems.Count != 2)
                 throw new InvalidOperationException("WPF DataGrid selection restore failed");
+            // Explicit deselection must survive a round-trip through a restrictive filter.
+            _grid.SelectedItems.Remove(_all[0]);
+            _search.Text = "Artist 0001";
+            Filter(this, new RoutedEventArgs());
+            Clear(this, new RoutedEventArgs());
+            if (_grid.SelectedItems.Count != 1 || !ReferenceEquals(_grid.SelectedItem, _all[size / 2]))
+                throw new InvalidOperationException("WPF explicit deselection was not honored");
             _grid.ScrollIntoView(_all[^1]);
             _grid.UpdateLayout();
             Console.WriteLine($"PASS WPF window {size:N0} rows, selection/filter/sort/scroll");
