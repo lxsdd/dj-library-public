@@ -24,10 +24,14 @@ public sealed partial class MainWindow
             throw new InvalidOperationException("Scroll regression must use 100,000 synthetic tracks");
 
         var originalWidths = TracksGrid.Columns.Select(x => x.Width).ToArray();
+        var originalMinimums = TracksGrid.Columns.Select(x => x.MinWidth).ToArray();
         try
         {
             foreach (var column in TracksGrid.Columns)
+            {
+                column.MinWidth = 250;
                 column.Width = new GridLength(250, GridUnitType.Pixel);
+            }
 
             await AwaitActualFrameAsync();
             await YieldToUiAsync();
@@ -66,7 +70,9 @@ public sealed partial class MainWindow
                     $"offset={s.HorizontalOffset:F0},{s.VerticalOffset:F0}"));
                 throw new InvalidOperationException(
                     "Real TableView did not expose both scroll directions after forcing " +
-                    $"250-pixel columns; {scrolls.Count} viewer(s): {diagnostics}");
+                    $"250-pixel columns; actual column widths=" +
+                    string.Join(",", TracksGrid.Columns.Select(c => c.ActualWidth.ToString("F0"))) +
+                    $"; {scrolls.Count} viewer(s): {diagnostics}");
             }
 
             horizontal.ChangeView(120, null, null, true);
@@ -97,7 +103,10 @@ public sealed partial class MainWindow
         finally
         {
             for (int i = 0; i < originalWidths.Length; i++)
-                TracksGrid.Columns[i].Width = originalWidths[i];
+                {
+                    TracksGrid.Columns[i].MinWidth = originalMinimums[i];
+                    TracksGrid.Columns[i].Width = originalWidths[i];
+                }
         }
     }
 }
