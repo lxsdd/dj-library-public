@@ -39,12 +39,12 @@
                       AutomationProperties.HelpText="Read-only synthetic track results. Filter and sort using the controls above."
                       IsReadOnly="True" SelectionMode="Extended">
             <tv:TableView.Columns>
-                <tv:TableViewTextColumn Header="Identity" Binding="{Binding Identity}" />
-                <tv:TableViewTextColumn Header="Artist" Binding="{Binding Artist}" />
-                <tv:TableViewTextColumn Header="Title" Binding="{Binding Title}" />
-                <tv:TableViewTextColumn Header="Genre" Binding="{Binding Genre}" />
-                <tv:TableViewTextColumn Header="Year" Binding="{Binding Year}" />
-                <tv:TableViewTextColumn Header="Duration" Binding="{Binding Duration}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Identity" Binding="{Binding Identity}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Artist" Binding="{Binding Artist}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Title" Binding="{Binding Title}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Genre" Binding="{Binding Genre}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Year" Binding="{Binding Year}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Duration" Binding="{Binding Duration}" />
             </tv:TableView.Columns>
         </tv:TableView>
         <TextBlock Grid.Row="4" x:Name="StatusText" TextWrapping="Wrap"
