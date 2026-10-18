@@ -75,6 +75,23 @@ public sealed partial class MainWindow
                     $"; {scrolls.Count} viewer(s): {diagnostics}");
             }
 
+            // A DJ user resizes a column while the grid is already visible.
+            // The horizontal viewport must grow immediately, not only after a
+            // complete TableView rebuild or application restart.
+            double beforeResize = horizontal.ScrollableWidth;
+            double oldWidth = TracksGrid.Columns[0].Width.Value;
+            TracksGrid.Columns[0].Width = new GridLength(oldWidth + 120, GridUnitType.Pixel);
+            TracksGrid.UpdateLayout();
+            await AwaitActualFrameAsync();
+            await YieldToUiAsync();
+            double afterResize = horizontal.ScrollableWidth;
+            if (afterResize < beforeResize + 60)
+                throw new InvalidOperationException(
+                    $"Live column resize failed to expand horizontal scroll range: " +
+                    $"before={beforeResize:F0}, after={afterResize:F0}, " +
+                    $"measured column={TracksGrid.Columns[0].ActualWidth:F0}, " +
+                    $"specified={TracksGrid.Columns[0].Width.Value:F0}");
+
             horizontal.ChangeView(120, null, null, true);
             await AwaitActualFrameAsync();
             if (horizontal.HorizontalOffset < 60)
