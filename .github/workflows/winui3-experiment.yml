@@ -99,6 +99,9 @@ jobs:
             if (-not $result.Contains('PASS WinUI accessibility:')) {
               throw 'WinUI TableView accessibility peer proof was not executed'
             }
+            if (-not $result.Contains('PASS WinUI scrolling:')) {
+              throw 'WinUI TableView programmatic horizontal/vertical scroll was not executed'
+            }
           }
           finally {
             if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
@@ -162,7 +165,8 @@ jobs:
             if (-not $text.StartsWith("PASS`n") -or
                 -not $text.Contains('PASS 100,000 synthetic WinUI') -or
                 -not $text.Contains('PASS WinUI columns: in-memory JSON') -or
-                -not $text.Contains('PASS WinUI accessibility:')) {
+                -not $text.Contains('PASS WinUI accessibility:') -or
+                -not $text.Contains('PASS WinUI scrolling:')) {
               throw 'Published WinUI 3 failed real window synthetic runtime assertions'
             }
           }
