@@ -91,26 +91,6 @@ public sealed partial class MainWindow
             TracksGrid.RemoveHandler(UIElement.KeyDownEvent, observer);
         }
     }
-    // Compare *focus retention outside* the table, independent of the number
-    // of Tab cells in a 100k-row grid. This is not human keyboard acceptance.
-    private string ProbeExplicitFocusTransfer()
-    {
-        const string marker = "FOCUS_TRANSFER_OBSERVATION WPF baseline: ";
-        if (_all.Count != 100_000) return marker + "INCONCLUSIVE wrong fixture";
-        _grid.ScrollIntoView(_all[0]);
-        _grid.UpdateLayout();
-        Keyboard.Focus(_grid);
-        PumpKeyboardFor(TimeSpan.FromMilliseconds(80));
-        if (!WithinGrid(Keyboard.FocusedElement, _grid))
-            return marker + "INCONCLUSIVE table focus not established";
-        bool requested = _focusProbeTarget.Focus();
-        Keyboard.Focus(_focusProbeTarget);
-        PumpKeyboardFor(TimeSpan.FromMilliseconds(180));
-        return marker + (requested && ReferenceEquals(Keyboard.FocusedElement, _focusProbeTarget)
-            ? "PASS target button retained keyboard focus after WPF DataGrid"
-            : "BLOCKED focused control reverted or target focus was refused");
-    }
-
     // A direct post-table focus transfer checks the separate reported issue:
     // successful Focus() that is secretly reverted by TableView on later frames.
     private async Task<string> ProbeExplicitFocusTransferAsync()
