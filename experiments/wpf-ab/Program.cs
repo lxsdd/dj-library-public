@@ -234,6 +234,9 @@ internal sealed partial class ComparisonWindow : Window
         string nativeReport = VerifyNativeCatalogBinding();
         report.Add(nativeReport);
         Console.WriteLine(nativeReport);
+        string navigationReport = VerifyHierarchicalNavigation();
+        report.Add(navigationReport);
+        Console.WriteLine(navigationReport);
         string sqliteReport = VerifyDisposableSqliteBinding();
         report.Add(sqliteReport);
         Console.WriteLine(sqliteReport);
