@@ -128,6 +128,55 @@ public sealed partial class MainWindow
                 throw new InvalidOperationException(
                     "WinUI cannot programmatically scroll to the final synthetic track");
 
+            // The logical UIA grid provider must also expose *realized* cells
+            // in a virtualized 100k-row/6-column model. This does not assert
+            // all 600k unmaterialized cells exist simultaneously in memory.
+            var automationPeer =
+                Microsoft.UI.Xaml.Automation.Peers.FrameworkElementAutomationPeer
+                    .CreatePeerForElement(TracksGrid);
+            var gridProvider = automationPeer?.GetPattern(
+                Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Grid) as
+                Microsoft.UI.Xaml.Automation.Provider.IGridProvider;
+            if (gridProvider == null || gridProvider.RowCount != _all.Count ||
+                gridProvider.ColumnCount != TracksGrid.Columns.Count)
+                throw new InvalidOperationException("WinUI virtualized UIA Grid provider has wrong logical shape");
+
+            bool finalCell = false;
+            for (int pass = 0; pass < 8; pass++)
+            {
+                if (gridProvider.GetItem(_all.Count - 1, TracksGrid.Columns.Count - 1) != null)
+                {
+                    finalCell = true;
+                    break;
+                }
+                await YieldToUiAsync();
+                await AwaitActualFrameAsync();
+            }
+            if (!finalCell)
+                throw new InvalidOperationException(
+                    "WinUI UIA Grid did not expose the final realized row/column " +
+                    "after right-edge and last-row ScrollIntoView");
+
+            horizontal.ChangeView(0, null, null, true);
+            TracksGrid.ScrollIntoView(_all[0]);
+            await AwaitActualFrameAsync();
+            await YieldToUiAsync();
+            bool firstCell = false;
+            for (int pass = 0; pass < 8; pass++)
+            {
+                if (gridProvider.GetItem(0, 0) != null)
+                {
+                    firstCell = true;
+                    break;
+                }
+                await YieldToUiAsync();
+                await AwaitActualFrameAsync();
+            }
+            if (!firstCell)
+                throw new InvalidOperationException(
+                    "WinUI UIA Grid did not expose first realized row/column " +
+                    "after return to top-left");
+
             // Live window resizing is independent from column resizing and
             // indispensable for large custom DJ tables. Verify the actual
             // visible TableView viewport/scroll extent and stable identities.
