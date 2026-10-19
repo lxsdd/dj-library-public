@@ -91,4 +91,47 @@ public sealed partial class MainWindow
             TracksGrid.RemoveHandler(UIElement.KeyDownEvent, observer);
         }
     }
+    // Compare *focus retention outside* the table, independent of the number
+    // of Tab cells in a 100k-row grid. This is not human keyboard acceptance.
+    private string ProbeExplicitFocusTransfer()
+    {
+        const string marker = "FOCUS_TRANSFER_OBSERVATION WPF baseline: ";
+        if (_all.Count != 100_000) return marker + "INCONCLUSIVE wrong fixture";
+        _grid.ScrollIntoView(_all[0]);
+        _grid.UpdateLayout();
+        Keyboard.Focus(_grid);
+        PumpKeyboardFor(TimeSpan.FromMilliseconds(80));
+        if (!WithinGrid(Keyboard.FocusedElement, _grid))
+            return marker + "INCONCLUSIVE table focus not established";
+        bool requested = _focusProbeTarget.Focus();
+        Keyboard.Focus(_focusProbeTarget);
+        PumpKeyboardFor(TimeSpan.FromMilliseconds(180));
+        return marker + (requested && ReferenceEquals(Keyboard.FocusedElement, _focusProbeTarget)
+            ? "PASS target button retained keyboard focus after WPF DataGrid"
+            : "BLOCKED focused control reverted or target focus was refused");
+    }
+
+    // A direct post-table focus transfer checks the separate reported issue:
+    // successful Focus() that is secretly reverted by TableView on later frames.
+    private async Task<string> ProbeExplicitFocusTransferAsync()
+    {
+        const string marker = "FOCUS_TRANSFER_OBSERVATION WinUI v1.5.1: ";
+        if (_all.Count != 100_000) return marker + "INCONCLUSIVE wrong fixture";
+        TracksGrid.ScrollIntoView(_all[0]);
+        await AwaitActualFrameAsync();
+        TracksGrid.Focus(FocusState.Keyboard);
+        await YieldToUiAsync();
+        if (!HasTableAncestor(FocusManager.GetFocusedElement(TracksGrid.XamlRoot), TracksGrid))
+            return marker + "INCONCLUSIVE table focus not established";
+        bool requested = FocusEscapeTarget.Focus(FocusState.Keyboard);
+        await Task.Delay(180);
+        await YieldToUiAsync();
+        await AwaitActualFrameAsync();
+        var focused = FocusManager.GetFocusedElement(TracksGrid.XamlRoot);
+        return marker + (requested && ReferenceEquals(focused, FocusEscapeTarget)
+            ? "PASS outside button retained keyboard focus after WinUI TableView"
+            : "BLOCKED outside focus request was ignored or reverted to " +
+                (focused?.GetType().Name ?? "<none>"));
+    }
+
 }

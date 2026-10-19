@@ -46,6 +46,7 @@ internal sealed partial class ComparisonWindow : Window
 {
     private readonly ComboBox _size = new ComboBox { Width = 100, SelectedIndex = 2 };
     private readonly TextBox _search = new TextBox { Width = 260, Margin = new Thickness(4, 0, 4, 0) };
+    private readonly Button _focusProbeTarget = new Button { Content = "Focus escape target", Margin = new Thickness(4, 0, 4, 0) };
     private readonly TextBlock _status = new TextBlock { Text = "No synthetic data loaded.", TextWrapping = TextWrapping.Wrap };
     private readonly DataGrid _grid = new DataGrid
     {
@@ -90,6 +91,7 @@ internal sealed partial class ComparisonWindow : Window
         AddButton(bar, "Apply filter", Filter);
         AddButton(bar, "Sort by title", Sort);
         AddButton(bar, "Show all", Clear);
+        bar.Children.Add(_focusProbeTarget);
         Grid.SetRow(bar, 0);
         var navigationBar = BuildNavigationToolbar();
         Grid.SetRow(navigationBar, 1);
@@ -239,6 +241,9 @@ internal sealed partial class ComparisonWindow : Window
         string keyboardReport = ProbeKeyboardFocusEscape();
         report.Add(keyboardReport);
         Console.WriteLine(keyboardReport);
+        string focusReport = ProbeExplicitFocusTransfer();
+        report.Add(focusReport);
+        Console.WriteLine(focusReport);
         string nativeReport = VerifyNativeCatalogBinding();
         report.Add(nativeReport);
         Console.WriteLine(nativeReport);

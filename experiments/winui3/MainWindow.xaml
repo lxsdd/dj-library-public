@@ -31,6 +31,7 @@
             <Button Content="Apply filter" Click="Filter_Click" VerticalAlignment="Bottom" />
             <Button Content="Sort by title" Click="Sort_Click" VerticalAlignment="Bottom" />
             <Button Content="Show all" Click="Clear_Click" VerticalAlignment="Bottom" />
+            <Button x:Name="FocusEscapeTarget" Content="Focus escape target" VerticalAlignment="Bottom" />
         </StackPanel>
         <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
             <TextBlock Text="TEMP SQLite navigation" VerticalAlignment="Center" />

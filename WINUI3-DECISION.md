@@ -83,3 +83,16 @@ The `1.5.1` TableView maintenance update adds fixes for column
 resizing/scrolling/header alignment; independent Windows CI and a
 bounded keyboard focus-escape diagnostic must qualify the experiment.
 This does not approve production migration. Upstream #443 stays open.
+
+## Focus diagnostic interpretation (2026-10-19)
+
+The exact-head GUI run `39274187587`, SHA `fe4d469ccc6c71a51ef16ebc3774afdea3fdf311`,
+verified 24 **routed** Tab events reached each active table. Both WPF
+DataGrid and WinUI.TableView 1.5.1 remained focused inside their
+100,000-row grids after 24 forward Tab presses. This alone is **NOT**
+evidence of a WinUI-specific keyboard defect: focus can legitimately
+traverse very many editable/focusable cells before leaving.
+Further tests must compare backward-from-first-cell and direct
+post-table focus transfers, not mistakenly treat large forward
+cell traversal as a proven WCAG trap. Upstream #443 still warrants
+real host keyboard and screen-reader validation.

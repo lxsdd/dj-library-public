@@ -56,6 +56,7 @@ jobs:
               if (-not $txt.Contains("PASS $n synthetic")) { throw "WPF compositor report missing $n" }
             }
             if (-not $txt.Contains('KEYBOARD_FOCUS_OBSERVATION WPF baseline:')) { throw 'WPF keyboard focus comparison did not execute' }
+            if (-not $txt.Contains('FOCUS_TRANSFER_OBSERVATION WPF baseline:')) { throw 'WPF explicit focus transfer test missing' }
             if (-not $txt.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:')) {
               throw 'WPF native DJ Library production-model runtime gate was not executed'
             }
@@ -120,6 +121,7 @@ jobs:
               throw 'WinUI TableView programmatic horizontal/vertical scroll was not executed'
             }
             if (-not $result.Contains('KEYBOARD_FOCUS_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI keyboard-focus diagnostic did not execute' }
+            if (-not $result.Contains('FOCUS_TRANSFER_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI explicit focus transfer test missing' }
             if (-not $result.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:')) {
               throw 'WinUI native DJ Library production-model runtime gate was not executed'
             }
@@ -181,6 +183,7 @@ jobs:
             if (-not $text.StartsWith("PASS`n") -or
                 -not $text.Contains('PASS 100,000 synthetic WPF') -or
                 -not $text.Contains('KEYBOARD_FOCUS_OBSERVATION WPF baseline:') -or
+                -not $text.Contains('FOCUS_TRANSFER_OBSERVATION WPF baseline:') -or
                 -not $text.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:') -or
                 -not $text.Contains('PASS WPF original BridgeSnapshotReader v3 TEMP:') -or
                 -not $text.Contains('PASS WPF original CatalogService release/disc/track navigation:') -or
@@ -210,6 +213,7 @@ jobs:
                 -not $text.Contains('PASS WinUI accessibility:') -or
                 -not $text.Contains('PASS WinUI scrolling:') -or
                 -not $text.Contains('KEYBOARD_FOCUS_OBSERVATION WinUI v1.5.1:') -or
+                -not $text.Contains('FOCUS_TRANSFER_OBSERVATION WinUI v1.5.1:') -or
                 -not $text.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:') -or
                 -not $text.Contains('PASS WinUI original BridgeSnapshotReader v3 TEMP:') -or
                 -not $text.Contains('PASS WinUI original CatalogService release/disc/track navigation:') -or
