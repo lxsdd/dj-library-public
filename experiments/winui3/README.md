@@ -53,3 +53,45 @@ settings is accessed. Migration stays blocked until the actual repository
 consumer, real UI keyboard/touchpad/DPI/read-only deployment and full
 feature parity have passed. WinUI 3 is not a drop-in replacement just
 because model binding and current performance probes pass.
+
+
+## Disposable native SQLite `GetNativeTracks()` integration (2026-10-19)
+
+The A/B **real HWND tests** now compile original, unmodified
+`src/WinSqlite.cs`, `src/CatalogService.NativeProjection.cs`, and
+`src/CatalogNativeModels.cs` directly into both test applications.
+`experiments/shared/NativeSqliteFixture.cs` is a **test-only partial
+CatalogService host**, *not* the full production bootstrap: it creates a
+unique, disposable database under `%TEMP%` with current catalog-v4
+release/disc/track table definitions and 1,345 fully synthetic records.
+
+The native WinSqlite driver closes its initial writable setup connection.
+The test computes a SHA-256 on the database while its handle is closed,
+opens it again, sets `PRAGMA query_only=ON`, verifies the guard by
+requiring a write attempt to be rejected, and calls the original
+`CatalogService.GetNativeTracks()` SELECT/join/row mapping and native
+projection contract. It closes SQLite, hashes the file again, and requires
+**exact byte-for-byte equality**. Both already-rendered WPF DataGrid and
+WinUI 3 TableView then bind those SQL-derived models, filter/sort/reset,
+and preserve two selected database track IDs.
+
+Source-validation SHA `4f244a58f64cbd8621aaf09563ccdaf6672d724d`:
+- [Windows real GUI native SQLite A/B and self-contained WinUI runtime
+  **39239006283**](https://github.com/lxsdd/dj-library-public/actions/runs/39239006283)
+  **SUCCESS**, with logged PASS lines for both WPF and WinUI, including
+  the separately published folder-local WinUI executable.
+- [Full original DJ Library WPF .NET 10 source
+  **39239006355**](https://github.com/lxsdd/dj-library-public/actions/runs/39239006355)
+  **SUCCESS**.
+- [Legacy product Windows build **39239006301**](https://github.com/lxsdd/dj-library-public/actions/runs/39239006301)
+  **SUCCESS**.
+
+**Explicit limit:** this uses the original production
+`CatalogService.NativeProjection` SQL but a minimal test-only host rather
+than the complete installed `CatalogService` bootstrap/migration/undo
+engine. There is **no** real personal catalog access, foobar Bridge,
+CD/CD-TEXT, full menu/dialog/keyboard/touchpad parity, clean-host
+Windows 10 installation or actual product UI migration. No user data,
+private tokens, billing or downloaded testing artifacts are involved.
+Production WPF remains unchanged and the safe default pending a
+reversible fully featured product pilot and real Windows acceptance.
