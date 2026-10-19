@@ -53,6 +53,14 @@ public sealed partial class MainWindow
             return marker + "INCONCLUSIVE table focus could not be established";
 
         int pressed = 0;
+        int delivered = 0;
+        KeyEventHandler observer = (sender, args) =>
+        {
+            if (args.Key == Windows.System.VirtualKey.Tab) delivered++;
+        };
+        TracksGrid.AddHandler(UIElement.KeyDownEvent, observer, true);
+        try
+        {
         for (int i = 0; i < 24; i++)
         {
             // Windows virtual key VK_TAB; key-up balances every key-down.
@@ -67,10 +75,20 @@ public sealed partial class MainWindow
                 return marker + "INCONCLUSIVE foreground changed during injected input";
             var current = FocusManager.GetFocusedElement(TracksGrid.XamlRoot);
             if (!HasTableAncestor(current, TracksGrid))
-                return marker + "PASS Tab escaped real table after " + pressed +
-                    " injected key press(es); CI desktop observation, NOT human/screenreader acceptance";
+                return marker + (delivered > 0 ? "PASS" : "INCONCLUSIVE") +
+                    " Tab escaped table after " + pressed + " injected key press(es); " +
+                    "Tab routed events received=" + delivered +
+                    "; CI desktop observation, NOT physical keyboard/screenreader acceptance";
         }
+        if (delivered == 0)
+            return marker + "INCONCLUSIVE no routed Tab key events reached TableView";
         return marker + "BLOCKED Tab remained inside table after " + pressed +
-            " actual foreground key press(es); do not approve WinUI production cutover";
+            " actual foreground key press(es); Tab routed events received=" + delivered +
+            "; do not approve WinUI production cutover";
+        }
+        finally
+        {
+            TracksGrid.RemoveHandler(UIElement.KeyDownEvent, observer);
+        }
     }
 }

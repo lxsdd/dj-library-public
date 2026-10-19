@@ -236,6 +236,9 @@ internal sealed partial class ComparisonWindow : Window
         report.Add(automationReport);
         Console.WriteLine(automationReport);
 
+        string keyboardReport = ProbeKeyboardFocusEscape();
+        report.Add(keyboardReport);
+        Console.WriteLine(keyboardReport);
         string nativeReport = VerifyNativeCatalogBinding();
         report.Add(nativeReport);
         Console.WriteLine(nativeReport);

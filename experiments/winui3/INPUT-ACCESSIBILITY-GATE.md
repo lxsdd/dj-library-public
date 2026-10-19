@@ -64,3 +64,19 @@ Stable WinUI.TableView 1.5.1 (released 2026-10-14) fixes issues with
 column resizing, scrolling and header alignment. Its release notes do
 **not** claim resolution of upstream keyboard-focus issue #443; do not
 assume it is solved by updating the package.
+
+## Diagnostic event-delivery and WPF control
+
+The first stable 1.5.1 Windows GUI run at SHA `66a76bd843466a9430a810a87ca8adc19c5fdc7a`
+reported `BLOCKED` after 24 Tab injections in both development and
+published WinUI binaries (run 39273032921). **Preliminary:** that probe
+did not yet prove the table received routed Tab KeyDown events.
+
+The strengthened probe registers a handled-events-too Tab KeyDown
+observer and reports INCONCLUSIVE when it sees zero Tab events.
+An equivalent foreground synthetic 100,000-row WPF DataGrid probe
+serves as the control, with its own routed Tab event count.
+
+WinUI BLOCKED with positive delivered-event count and WPF PASS would
+support a genuine framework-specific keyboard trap finding.
+Physical keyboard and screen-reader acceptance is still required.

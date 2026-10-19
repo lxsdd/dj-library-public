@@ -55,6 +55,7 @@ jobs:
             foreach ($n in @('1,345','15,000','54,129','100,000')) {
               if (-not $txt.Contains("PASS $n synthetic")) { throw "WPF compositor report missing $n" }
             }
+            if (-not $txt.Contains('KEYBOARD_FOCUS_OBSERVATION WPF baseline:')) { throw 'WPF keyboard focus comparison did not execute' }
             if (-not $txt.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:')) {
               throw 'WPF native DJ Library production-model runtime gate was not executed'
             }
@@ -179,6 +180,7 @@ jobs:
             $text = Get-Content -LiteralPath $wpfReport -Raw
             if (-not $text.StartsWith("PASS`n") -or
                 -not $text.Contains('PASS 100,000 synthetic WPF') -or
+                -not $text.Contains('KEYBOARD_FOCUS_OBSERVATION WPF baseline:') -or
                 -not $text.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:') -or
                 -not $text.Contains('PASS WPF original BridgeSnapshotReader v3 TEMP:') -or
                 -not $text.Contains('PASS WPF original CatalogService release/disc/track navigation:') -or
