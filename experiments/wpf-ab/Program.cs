@@ -234,6 +234,9 @@ internal sealed partial class ComparisonWindow : Window
         string nativeReport = VerifyNativeCatalogBinding();
         report.Add(nativeReport);
         Console.WriteLine(nativeReport);
+        string sqliteReport = VerifyDisposableSqliteBinding();
+        report.Add(sqliteReport);
+        Console.WriteLine(sqliteReport);
 
         var path = Environment.GetEnvironmentVariable("DJLIB_WPF_AB_SMOKE_REPORT");
         if (!string.IsNullOrWhiteSpace(path))
