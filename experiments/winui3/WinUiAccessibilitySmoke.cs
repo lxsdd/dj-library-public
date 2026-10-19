@@ -41,8 +41,23 @@ public sealed partial class MainWindow
             throw new InvalidOperationException(
                 "WinUI TableView has no actual UI Automation Selection pattern provider");
 
+        // A merely named DataGrid is insufficient for navigating a large
+        // music catalog with assistive technology. Table headers must also
+        // be accessible via the real UIA Table pattern.
+        var table = peer.GetPattern(PatternInterface.Table) as
+            Microsoft.UI.Xaml.Automation.Provider.ITableProvider;
+        if (table == null)
+            throw new InvalidOperationException(
+                "WinUI TableView has no UI Automation Table provider");
+        var columns = table.GetColumnHeaders();
+        if (columns == null || columns.Length != grid.ColumnCount)
+            throw new InvalidOperationException(
+                $"WinUI UIA Table header count mismatch: " +
+                $"headers={columns?.Length ?? -1}, expected={grid.ColumnCount}");
+
         return $"PASS WinUI accessibility: real TableView automation peer, " +
             $"stable name, control type {type}, UIA Grid {grid.RowCount}x{grid.ColumnCount}, " +
-            "Selection pattern (not a physical screen-reader or keyboard acceptance test)";
+            $"Selection and Table patterns, {columns.Length} navigable column headers " +
+            "(not physical screen-reader/keyboard acceptance)";
     }
 }
