@@ -79,7 +79,7 @@ namespace DJLibrary.SyntheticComparison
         // schema-v4 bootstrap, ValidateAndMigrate and GetNativeTracks.
         public static List<SyntheticTrackRow> LoadReadOnlySqlite(int count)
         {
-            if (count < 1 || count > 15000)
+            if (count < 1 || count > 54_129)
                 throw new ArgumentOutOfRangeException(nameof(count));
             string dir = Path.Combine(Path.GetTempPath(),
                 "DJLibrary-WinUi-Full-Catalog-A-B-" + Guid.NewGuid().ToString("N"));
