@@ -18,6 +18,33 @@ public sealed partial class MainWindow
             GatherScrollViewers(VisualTreeHelper.GetChild(root, index), viewers);
     }
 
+    // Vendor TableView propagates a column ActualWidth to realized cell widths,
+    // but its ScrollViewer can retain an older ItemsPresenter/row measure.
+    // Invalidate *realized* geometry only: never rebuild ItemsSource or mask a
+    // stale scrollbar with a synthetic extent.
+    private int InvalidateRealizedTableGeometry(ScrollViewer horizontal)
+    {
+        if (horizontal.Content is UIElement contents)
+            contents.InvalidateMeasure();
+
+        int realizedRows = 0;
+        for (int index = 0; index < 64; index++)
+        {
+            if (TracksGrid.ContainerFromIndex(index) is FrameworkElement row)
+            {
+                row.InvalidateMeasure();
+                realizedRows++;
+                // A recycled row's child presenter may be its actual
+                // horizontal extent contributor, not the row itself.
+                int descendants = VisualTreeHelper.GetChildrenCount(row);
+                for (int child = 0; child < descendants; child++)
+                    if (VisualTreeHelper.GetChild(row, child) is UIElement element)
+                        element.InvalidateMeasure();
+            }
+        }
+        return realizedRows;
+    }
+
     private async Task<string> VerifyProgrammaticScrollContractAsync()
     {
         if (_all.Count != 100_000)
@@ -85,7 +112,9 @@ public sealed partial class MainWindow
             // ActualWidth and Width. Calling only Width is not a supported
             // equivalent of its realized-column resize path.
             TracksGrid.Columns[0].ActualWidth = oldWidth + 120;
-            // Re-measure after programmatic column resizing. Never relax the extent gate.
+            // TableViewColumn.ActualWidth is already correct, but the
+            // container providing ScrollViewer.ExtentWidth may be stale.
+            int realizedRowsInvalidated = InvalidateRealizedTableGeometry(horizontal);
             horizontal.InvalidateMeasure();
             TracksGrid.InvalidateMeasure();
             TracksGrid.UpdateLayout();
@@ -99,6 +128,7 @@ public sealed partial class MainWindow
             for (int pass = 0; pass < 12 && afterResize < beforeResize + 60; pass++)
             {
                 await YieldToUiAsync();
+                InvalidateRealizedTableGeometry(horizontal);
                 TracksGrid.UpdateLayout();
                 await AwaitActualFrameAsync();
                 afterResize = horizontal.ScrollableWidth;
@@ -110,7 +140,9 @@ public sealed partial class MainWindow
                     $"measured column={TracksGrid.Columns[0].ActualWidth:F0}, " +
                     $"specified={TracksGrid.Columns[0].Width.Value:F0}, " +
                     $"extent={horizontal.ExtentWidth:F0}, viewport={horizontal.ViewportWidth:F0}, " +
-                    $"column actual total={TracksGrid.Columns.Sum(c => c.ActualWidth):F0}; " +
+                    $"column actual total={TracksGrid.Columns.Sum(c => c.ActualWidth):F0}, " +
+                    $"realized rows remeasured={realizedRowsInvalidated}, " +
+                    $"scroll content={horizontal.Content?.GetType().Name ?? "<null>"}; " +
                     string.Join("; ", scrolls.Select((v, i) =>
                         $"scroll[{i}]: extent={v.ExtentWidth:F0} viewport={v.ViewportWidth:F0} " +
                         $"scrollable={v.ScrollableWidth:F0} hOffset={v.HorizontalOffset:F0}")));

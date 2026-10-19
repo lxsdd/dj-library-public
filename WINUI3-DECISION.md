@@ -136,3 +136,25 @@ inner ScrollViewer's measure before the already-strict scroll extent
 assertion. A PASS would verify this workaround only, not prove the
 upstream library is natively stable. On FAIL, completed earlier smoke
 results are preserved in the CI report to accelerate diagnosis.
+
+## Realized-container measure trial (next exact-head CI pending)
+
+After the initial experiment commit `b7a604ad49bca8fd42babb30291ce7d5fcc5c503`
+CI, the **strict WinUI horizontal scroll-extent test still FAILED**:
+header/column specified and actual width 370px, six-column total
+1620px, while ScrollViewer extent stayed 1517px against 950px viewport.
+A runtime programmatic-layout invalidation alone was not sufficient.
+
+The new experiment explicitly invalidates the actual ScrollViewer
+content and realized TableView row geometry without replacing the
+ItemsSource or fabricating scrollbar values. The pass/fail threshold
+remains unchanged. This is an app-side mitigation trial, **not**
+evidence that upstream 1.5.1 is fixed.
+
+To avoid throwing away independent results at that late failure, the
+read-only original Bridge v3, SQLite v4, release/disc/track and
+native projection tests now execute *before* the strict scroll gate.
+The 100,000-row synthetic dataset is reloaded for the final scroll
+validation, and earlier checks remain in the failure report. Retain
+WPF product and draft WinUI NO-GO until the full published-app Windows
+CI and physical hardware acceptance pass.

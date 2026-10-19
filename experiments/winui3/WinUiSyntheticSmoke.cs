@@ -143,12 +143,18 @@ public sealed partial class MainWindow
         Record(await ProbeReverseKeyboardBoundaryAsync());
         Record(await VerifyBoundaryKeyboardEscapeAsync());
         Record(await ProbeExplicitFocusTransferAsync());
-        Record(await VerifyProgrammaticScrollContractAsync());
         Record(await VerifyNativeCatalogBindingAsync());
         Record(await VerifyHierarchicalNavigationAsync());
         Record(await VerifyNavigationSelectorsAsync());
         Record(await VerifyBridgeSnapshotBindingAsync());
         Record(await VerifyDisposableSqliteBindingAsync());
+        // Leave the strict and intermittently failing scroll-range test last:
+        // unrelated catalog/bridge/navigation qualifications must still run
+        // and be retained on disk if that last gate fails.
+        SizeSelector.SelectedIndex = Array.IndexOf(SyntheticCatalog.SupportedSizes, 100_000);
+        Load_Click(this, new RoutedEventArgs());
+        await AwaitActualFrameAsync();
+        Record(await VerifyProgrammaticScrollContractAsync());
         return string.Join("\n", evidence) +
             "\nNOT TESTED: user drag gestures, native horizontal touchpad, real settings path, " +
             "monitor scanout, packaging, user catalog, mixed-DPI, physical input, Narrator/NVDA or visual parity.";
