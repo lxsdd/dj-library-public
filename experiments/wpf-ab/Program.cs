@@ -135,9 +135,14 @@ internal sealed partial class ComparisonWindow : Window
                 throw new InvalidOperationException("WPF explicit deselection was not honored");
             _grid.ScrollIntoView(_all[^1]);
             _grid.UpdateLayout();
+            using var currentProcess = Process.GetCurrentProcess();
+            currentProcess.Refresh();
+            var privateMiB = currentProcess.PrivateMemorySize64 / 1048576.0;
+            var workingMiB = currentProcess.WorkingSet64 / 1048576.0;
             var outcome = $"PASS {size:N0} synthetic WPF DataGrid rows, real window layout " +
                 $"{_grid.ActualWidth:F0}x{_grid.ActualHeight:F0}, next compositor Rendering callback " +
                 $"median {frameMs:F1} ms, p95 sample {p95Ms:F1} ms (5 samples), " +
+                $"process private {privateMiB:F1} MiB, working set {workingMiB:F1} MiB, " +
                 "selection/filter/sort/scroll/explicit deselection";
             report.Add(outcome);
             Console.WriteLine(outcome);
