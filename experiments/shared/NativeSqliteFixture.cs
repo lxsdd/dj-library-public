@@ -82,7 +82,14 @@ namespace DJLibrary.SyntheticComparison
                     });
                     if (db.QuickCheck() != "ok")
                         throw new InvalidDataException("Disposable SQLite fixture failed quick_check");
-                    string before = Sha256(path);
+                }
+                // winsqlite3.dll can hold exclusive access while SQLite is
+                // open. Hash the fixture only with ALL SQLite handles closed.
+                string before = Sha256(path);
+                List<SyntheticTrackRow> rows;
+                using (var db = new WinSqliteDb(path))
+                {
+                    db.Execute("PRAGMA foreign_keys=ON");
                     // Fail-closed read-only mode BEFORE real CatalogService SELECT.
                     db.Execute("PRAGMA query_only=ON");
                     if (ToInt(db.Scalar("PRAGMA query_only")) != 1)
@@ -102,16 +109,18 @@ namespace DJLibrary.SyntheticComparison
                         native[0].Artist != "Native Artist 001" ||
                         native[^1].Title != "Native Title " + count.ToString("D6", CultureInfo.InvariantCulture))
                         throw new InvalidOperationException("Native SQLite GetNativeTracks source projection mismatch");
-                    var rows = NativeTrackProjection.Project(native);
+                    rows = NativeTrackProjection.Project(native);
                     if (rows.Count != count || rows[0].Identity != "native-track-000000000001")
                         throw new InvalidOperationException("Native SQLite rows lost track identity");
                     var ids = SyntheticSelection.Capture(new[] { rows[0], rows[^1] });
                     if (SyntheticSelection.Restore(SyntheticCatalog.SortByTitle(rows), ids).Count != 2)
                         throw new InvalidOperationException("Native SQLite identities not stable under sorting");
-                    if (!string.Equals(before, Sha256(path), StringComparison.Ordinal))
-                        throw new InvalidOperationException("Read-only SQLite test modified the fixture database");
-                    return rows;
                 }
+                // A genuine on-disk byte-for-byte read-only check AFTER the
+                // native Windows SQLite driver has closed its file handle.
+                if (!string.Equals(before, Sha256(path), StringComparison.Ordinal))
+                    throw new InvalidOperationException("Read-only SQLite test modified the fixture database");
+                return rows;
             }
             finally
             {
