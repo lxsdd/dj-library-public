@@ -96,6 +96,8 @@ internal sealed partial class ComparisonWindow
 
     private string VerifyNavigationSelectors()
     {
+        if (!_grid.IsReadOnly)
+            throw new InvalidOperationException("WPF experimental DataGrid must remain read-only");
         NavigationLoad(this, new RoutedEventArgs());
         _grid.UpdateLayout();
         if (_navigation == null || _navigationReleases.Items.Count != 3 ||

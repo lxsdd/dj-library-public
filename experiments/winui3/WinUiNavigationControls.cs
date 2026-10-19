@@ -76,6 +76,8 @@ public sealed partial class MainWindow
 
     private async Task<string> VerifyNavigationSelectorsAsync()
     {
+        if (!TracksGrid.IsReadOnly || TracksGrid.CanPaste || !TracksGrid.CanCopy)
+            throw new InvalidOperationException("WinUI experimental table must be read-only, allow copy and block paste");
         NavigationLoad_Click(this, new RoutedEventArgs());
         await AwaitActualFrameAsync();
         if (_navigation == null || NavigationReleaseSelector.Items.Count != 3 ||

@@ -44,7 +44,7 @@
         <InfoBar Grid.Row="3" IsOpen="True" IsClosable="False"
                  Severity="Informational" Title="Comparable synthetic model operations"
                  Message="Both UI prototypes use the same generator/filter/sort source. Elapsed times exclude visible frame rendering." />
-        <tv:TableView Grid.Row="4" x:Name="TracksGrid" AutoGenerateColumns="False"
+        <tv:TableView Grid.Row="4" x:Name="TracksGrid" AutoGenerateColumns="False" CanCopy="True" CanPaste="False"
                       AutomationProperties.Name="DJ Library synthetic track table"
                       AutomationProperties.HelpText="Read-only synthetic track results. Filter and sort using the controls above."
                       IsReadOnly="True" SelectionMode="Extended">
