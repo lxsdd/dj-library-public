@@ -19,3 +19,37 @@
 Central coordination: [dev-infrastructure #18](https://github.com/lxsdd/dev-infrastructure/issues/18). Current experiment issue: [DJ Library public #4](https://github.com/lxsdd/dj-library-public/issues/4).
 
 Reference: Microsoft WinUI 3 migration guide: https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/migrate-to-windows-app-sdk/migration-decision-guide
+
+
+## First read-only native DJ Library model integration (2026-10-19)
+
+The WinUI 3 and WPF real-window runtime tests now **compile the unmodified
+production `src/CatalogNativeModels.cs`** source as a linked C# file in each
+test executable. A shared fail-closed `NativeTrackProjection` maps
+`CatalogNativeTrack` records to the exact same presentation row type for
+both table frameworks. The records are created in memory, with positive
+physical identity, positive disc ID and position, and finite duration;
+duplicate IDs/invalid source identities and invalid durations are rejected.
+
+The Windows test has the native models generate 1,345 synthetic DJ catalog
+tracks. Each actually rendered WPF DataGrid and WinUI TableView must keep two
+*stable catalog IDs* selected across native-model filter/sort/reset. The
+regular 100,000-row synthetic performance, scroll, actual UI Automation,
+window resize, portable startup, schema/column and snapshot tests still run.
+
+- [PR #5](https://github.com/lxsdd/dj-library-public/pull/5),
+  original integration SHA `1d9fcb3e152443b6f0a29abe586d9352daaf3253`.
+- [Real WinUI/WPF HWND, native model, and WinUI published-runtime Windows run
+  39232911209](https://github.com/lxsdd/dj-library-public/actions/runs/39232911209): SUCCESS.
+- [Full existing DJ Library WPF .NET 10 source compatibility
+  39232911191](https://github.com/lxsdd/dj-library-public/actions/runs/39232911191): SUCCESS.
+- [Legacy build/selftest 39232911216](https://github.com/lxsdd/dj-library-public/actions/runs/39232911216):
+  SUCCESS.
+
+**Boundary:** this exercises the **real native model type**, NOT a read-only
+SQLite catalog/Bridge consumer and NOT the actual installed DJ Library UI.
+No real personal data, database, foobar Bridge, CD drive, music path or native
+settings is accessed. Migration stays blocked until the actual repository
+consumer, real UI keyboard/touchpad/DPI/read-only deployment and full
+feature parity have passed. WinUI 3 is not a drop-in replacement just
+because model binding and current performance probes pass.
