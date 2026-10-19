@@ -45,3 +45,22 @@ WinUI and WPF test programs and the 100,000-row workload:
 A GitHub-hosted compositor/layout smoke **cannot** substitute for these
 physical input, accessibility or screen-reader checks. Maintain
 `INSUFFICIENT_EVIDENCE_FOR_PRODUCTION_WINUI_CUTOVER` until proven.
+
+## Isolated Windows-CI keyboard diagnostic (v1.5.1)
+
+A real-window UI-thread probe was added alongside the 100,000-row test.
+It first verifies that the Windows CI desktop has foreground ownership,
+then attempts to focus the TableView, injects bounded Tab key presses
+and checks focused-element ancestry after event/dispatcher processing.
+It records `PASS` only when focus demonstrably leaves the table;
+`INCONCLUSIVE` means the runner lacks foreground or focus setup and
+**must not** be reported as keyboard acceptance. `BLOCKED` means the
+probe observed focus remain trapped after its bounded input attempts.
+No programmatic focus-call return value counts as proof of release.
+The WPF UI still serves as functional reference; physical keyboard,
+Shift+Tab, screenreader and DPI tests remain mandatory.
+
+Stable WinUI.TableView 1.5.1 (released 2026-10-14) fixes issues with
+column resizing, scrolling and header alignment. Its release notes do
+**not** claim resolution of upstream keyboard-focus issue #443; do not
+assume it is solved by updating the package.

@@ -118,6 +118,7 @@ jobs:
             if (-not $result.Contains('PASS WinUI scrolling:')) {
               throw 'WinUI TableView programmatic horizontal/vertical scroll was not executed'
             }
+            if (-not $result.Contains('KEYBOARD_FOCUS_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI keyboard-focus diagnostic did not execute' }
             if (-not $result.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:')) {
               throw 'WinUI native DJ Library production-model runtime gate was not executed'
             }
@@ -206,6 +207,7 @@ jobs:
                 -not $text.Contains('PASS WinUI columns: in-memory JSON') -or
                 -not $text.Contains('PASS WinUI accessibility:') -or
                 -not $text.Contains('PASS WinUI scrolling:') -or
+                -not $text.Contains('KEYBOARD_FOCUS_OBSERVATION WinUI v1.5.1:') -or
                 -not $text.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:') -or
                 -not $text.Contains('PASS WinUI original BridgeSnapshotReader v3 TEMP:') -or
                 -not $text.Contains('PASS WinUI original CatalogService release/disc/track navigation:') -or

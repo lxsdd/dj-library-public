@@ -129,6 +129,7 @@ public sealed partial class MainWindow
         // user's named grid layout, not a claim of end-user drag/drop parity.
         evidence.Add(VerifySyntheticColumnStateRoundTrip());
         evidence.Add(VerifyTableAccessibilityContract());
+        evidence.Add(await ProbeKeyboardFocusEscapeAsync());
         evidence.Add(await VerifyProgrammaticScrollContractAsync());
         evidence.Add(await VerifyNativeCatalogBindingAsync());
         evidence.Add(await VerifyHierarchicalNavigationAsync());
@@ -137,6 +138,6 @@ public sealed partial class MainWindow
         evidence.Add(await VerifyDisposableSqliteBindingAsync());
         return string.Join("\n", evidence) +
             "\nNOT TESTED: user drag gestures, native horizontal touchpad, real settings path, " +
-            "monitor scanout, packaging, user catalog, mixed-DPI, accessibility or visual parity.";
+            "monitor scanout, packaging, user catalog, mixed-DPI, physical input, Narrator/NVDA or visual parity.";
     }
 }

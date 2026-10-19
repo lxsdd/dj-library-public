@@ -17,7 +17,7 @@ approval to rewrite a customer's data.
   also passed three SHA-bound runs, including empty release and stale
   navigation-state negative tests (GUI run `39266943414`).
 - Current **experiment** uses .NET 10, Windows App SDK `2.5.1` and
-  community `WinUI.TableView` `1.5.0`, alongside WPF DataGrid.
+  community `WinUI.TableView` `1.5.0` (baseline); candidate `1.5.1` is being independently qualified, alongside WPF DataGrid.
   Native foobar2000 plugins and Android are separate stacks.
 
 ## What is actually qualified
@@ -49,7 +49,7 @@ approval to rewrite a customer's data.
 - A specific unresolved upstream accessibility risk:
   https://github.com/w-ahmad/WinUI.TableView/issues/443
   reports a keyboard trap in **1.5.0-preview2**. Applicability to the
-  pinned stable **1.5.0** is unknown. See
+  stable **1.5.0** and **1.5.1** is unknown. See
   `experiments/winui3/INPUT-ACCESSIBILITY-GATE.md`.
 - Screen-perceived frame latency, cold-start distributions,
   high-percentile jank and long-running resource use on identical
@@ -76,3 +76,10 @@ data-integrity checks before first access to a real catalog. No live
 catalog/music/rekordbox/tag/setting writes without explicit permission.
 No private Actions billing, extra paid runners, huge artifact uploads,
 secrets, proprietary data, or new automation.
+
+## Later isolated candidate (pending exact-head CI)
+
+The `1.5.1` TableView maintenance update adds fixes for column
+resizing/scrolling/header alignment; independent Windows CI and a
+bounded keyboard focus-escape diagnostic must qualify the experiment.
+This does not approve production migration. Upstream #443 stays open.
