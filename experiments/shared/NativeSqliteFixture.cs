@@ -156,6 +156,10 @@ namespace DJLibrary.SyntheticComparison
 
                 if (!string.Equals(before, Sha256(path), StringComparison.Ordinal))
                     throw new InvalidOperationException("Full CatalogService read-only path changed SQLite bytes");
+
+                // Genuine production v3->v4 migration/backup and unsupported
+                // schema rejection, again confined to this generated %TEMP% dir.
+                VerifySchemaMigrationAndRejection(dir);
                 return rows;
             }
             finally
@@ -164,6 +168,71 @@ namespace DJLibrary.SyntheticComparison
                 try { Directory.Delete(dir, true); } catch { }
             }
         }
+        private static void VerifySchemaMigrationAndRejection(string dir)
+        {
+            // The production v3->v4 migration removes the historical '°' CDX
+            // flag only for a confirmed incompatible physical TOC. The
+            // pre-migration backup must retain the old metadata/marker.
+            string migrate = Path.Combine(dir, "migration-v3.sqlite");
+            using (var fresh = CatalogService.CreateEmptyForTesting(migrate))
+            {
+                if (fresh.SchemaVersion != CatalogService.CurrentSchemaVersion)
+                    throw new InvalidDataException("Temporary catalog bootstrap schema mismatch");
+            }
+            using (var writer = new WinSqliteDb(migrate))
+            {
+                writer.Transaction(() =>
+                {
+                    writer.Execute("INSERT INTO release(id,album_artist,album) VALUES(1,'Historic Artist','Historic Album°')");
+                    writer.Execute("INSERT INTO disc(id,release_id,disc_number,toc,toc_complete) VALUES(1,1,1,'150 360150',1)");
+                    writer.Execute("UPDATE meta SET value='3' WHERE key='schema_version'");
+                });
+            }
+            using (var converted = CatalogService.OpenForTesting(migrate))
+            {
+                var releases = converted.GetReleases();
+                if (converted.SchemaVersion != 4 ||
+                    converted.CdxMarkerCleanupCount != 1 ||
+                    converted.ForeignKeyViolationCount() != 0 ||
+                    converted.QuickCheck() != "ok" ||
+                    releases.Count != 1 ||
+                    releases[0].Album != "Historic Album")
+                    throw new InvalidDataException("Full CatalogService v3->v4/CDX migration failed");
+            }
+            string backup = migrate + ".pre-v4.bak";
+            if (!File.Exists(backup))
+                throw new InvalidDataException("Full CatalogService did not preserve pre-v4 SQLite backup");
+            using (var old = new WinSqliteDb(backup))
+            {
+                if (Convert.ToString(old.Scalar("SELECT value FROM meta WHERE key='schema_version'"),
+                        CultureInfo.InvariantCulture) != "3" ||
+                    Convert.ToString(old.Scalar("SELECT album FROM release WHERE id=1"),
+                        CultureInfo.InvariantCulture) != "Historic Album°")
+                    throw new InvalidDataException("Pre-migration backup lost historical schema/CDX marker");
+            }
+
+            // Unsupported schema must fail-closed without modifying the
+            // SQLite file or triggering auto-recovery from a user profile.
+            string invalid = Path.Combine(dir, "unsupported-v999.sqlite");
+            using (var fresh = CatalogService.CreateEmptyForTesting(invalid))
+            {
+                if (fresh.SchemaVersion != 4)
+                    throw new InvalidDataException("Unsupported-version fixture bootstrap failed");
+            }
+            using (var db = new WinSqliteDb(invalid))
+                db.Execute("UPDATE meta SET value='999' WHERE key='schema_version'");
+            string before = Sha256(invalid);
+            bool rejected = false;
+            try
+            {
+                using (var shouldFail = CatalogService.OpenForTesting(invalid)) { }
+            }
+            catch (InvalidDataException) { rejected = true; }
+            if (!rejected || !string.Equals(before, Sha256(invalid), StringComparison.Ordinal))
+                throw new InvalidDataException(
+                    "Unsupported source catalog schema was accepted or silently rewritten");
+        }
+
         private static string Sha256(string path)
         {
             using (var hash = SHA256.Create())
