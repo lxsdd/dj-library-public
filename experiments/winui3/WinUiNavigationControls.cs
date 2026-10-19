@@ -141,7 +141,6 @@ public sealed partial class MainWindow
         if (TracksGrid.Items.Count != 2 || _all[0].Identity != "track:101")
             throw new InvalidOperationException("WinUI could not navigate after empty release");
         NavigationReleases_Click(this, new RoutedEventArgs());
-        NavigationReleases_Click(this, new RoutedEventArgs());
         return "PASS WinUI interactive TEMP CatalogService navigation controls: " +
             "real Release/Disc ComboBox SelectionChanged events routed to real TableView, " +
             "3/2/2 rows, filter and back-to-releases, stored TOC/CD-TEXT/CDX detail transitions; no production files";
