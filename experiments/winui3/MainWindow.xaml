@@ -4,7 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:tv="using:WinUI.TableView"
     Title="DJ Library — WinUI 3 experimental workspace">
-    <Grid Padding="16" RowSpacing="10">
+    <Grid Padding="16" RowSpacing="3">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
