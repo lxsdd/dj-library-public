@@ -64,7 +64,7 @@ internal sealed partial class ComparisonWindow : Window
     {
         Title = "DJ Library — WPF .NET 10 synthetic A/B workspace";
         Width = 1000;
-        Height = 590;
+        Height = 840;
         MinWidth = 700;
         MinHeight = 400;
         foreach (int count in SyntheticCatalog.SupportedSizes) _size.Items.Add(count.ToString("N0"));
