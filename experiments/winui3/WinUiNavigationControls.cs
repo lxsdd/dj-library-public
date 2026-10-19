@@ -42,7 +42,11 @@ public sealed partial class MainWindow
 
     private void NavigationReleases_Click(object sender, RoutedEventArgs e)
     {
-        if (_navigation != null) ShowNavigationRows(_navigation.Releases);
+        if (_navigation == null) return;
+        NavigationReleaseSelector.SelectedIndex = -1;
+        NavigationDiscSelector.SelectedIndex = -1;
+        NavigationDiscSelector.ItemsSource = null;
+        ShowNavigationRows(_navigation.Releases);
     }
 
     private void NavigationRelease_Changed(object sender, SelectionChangedEventArgs e)
@@ -120,6 +124,23 @@ public sealed partial class MainWindow
             !StatusText.Text.Contains("CDX: unknown") ||
             !StatusText.Text.Contains("CD-TEXT: drive_unavailable"))
             throw new InvalidOperationException("WinUI unknown CD evidence was incorrectly promoted");
+        NavigationReleaseSelector.SelectedItem = _navigation.Releases.Single(r => r.Identity == "release:3");
+        await YieldToUiAsync();
+        if (NavigationDiscSelector.Items.Count != 0 || NavigationDiscSelector.SelectedItem != null ||
+            TracksGrid.Items.Count != 0 || StatusText.Text.Contains("TOC:"))
+            throw new InvalidOperationException("WinUI empty release retained stale disc/track state");
+        NavigationReleases_Click(this, new RoutedEventArgs());
+        await YieldToUiAsync();
+        if (NavigationReleaseSelector.SelectedItem != null || NavigationDiscSelector.SelectedItem != null ||
+            NavigationDiscSelector.Items.Count != 0 || TracksGrid.Items.Count != 3 || StatusText.Text.Contains("TOC:"))
+            throw new InvalidOperationException("WinUI returning to Releases retained stale hierarchy state");
+        NavigationReleaseSelector.SelectedItem = _navigation.Releases.Single(r => r.Identity == "release:1");
+        await YieldToUiAsync();
+        NavigationDiscSelector.SelectedItem = _navigation.ForDiscs(1)[0];
+        await YieldToUiAsync();
+        if (TracksGrid.Items.Count != 2 || _all[0].Identity != "track:101")
+            throw new InvalidOperationException("WinUI could not navigate after empty release");
+        NavigationReleases_Click(this, new RoutedEventArgs());
         NavigationReleases_Click(this, new RoutedEventArgs());
         return "PASS WinUI interactive TEMP CatalogService navigation controls: " +
             "real Release/Disc ComboBox SelectionChanged events routed to real TableView, " +
