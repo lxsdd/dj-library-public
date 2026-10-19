@@ -20,6 +20,11 @@
     <!-- Exact, unmodified production DJ Library native SQLite-projection model. -->
     <Compile Include="../../src/CatalogNativeModels.cs" Link="Production/CatalogNativeModels.cs" />
     <Compile Include="../shared/NativeTrackProjection.cs" Link="Shared/NativeTrackProjection.cs" />
+    <!-- Original production native SQLite API and unchanged CatalogService SQL. -->
+    <Compile Include="../../src/WinSqlite.cs" Link="Production/WinSqlite.cs" />
+    <Compile Include="../../src/CatalogService.NativeProjection.cs" Link="Production/CatalogService.NativeProjection.cs" />
+    <!-- Synthetic disposable SQLite fixture and minimal CatalogService host only. -->
+    <Compile Include="../shared/NativeSqliteFixture.cs" Link="Shared/NativeSqliteFixture.cs" />
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.5.1" />
     <PackageReference Include="WinUI.TableView" Version="1.5.0" />
   </ItemGroup>
