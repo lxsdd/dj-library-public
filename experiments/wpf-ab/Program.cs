@@ -17,9 +17,25 @@ internal static class Program
             var window = new ComparisonWindow();
             window.Show();
             window.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-            window.RunSyntheticSmoke();
-            window.Close();
-            app.Shutdown();
+            try
+            {
+                window.RunSyntheticSmoke();
+            }
+            catch (Exception e)
+            {
+                var diagnostics = Environment.GetEnvironmentVariable("DJLIB_WPF_AB_SMOKE_REPORT");
+                if (!string.IsNullOrWhiteSpace(diagnostics))
+                {
+                    try { System.IO.File.WriteAllText(diagnostics, "FAIL\n" + e); }
+                    catch { /* Preserve the original test failure. */ }
+                }
+                throw;
+            }
+            finally
+            {
+                window.Close();
+                app.Shutdown();
+            }
             return;
         }
         new Application().Run(new ComparisonWindow());
