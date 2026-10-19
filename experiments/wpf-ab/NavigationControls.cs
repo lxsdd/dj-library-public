@@ -150,7 +150,6 @@ internal sealed partial class ComparisonWindow
         if (_grid.Items.Count != 2 || _all[0].Identity != "track:101")
             throw new InvalidOperationException("WPF could not navigate after empty release");
         NavigationReleases(this, new RoutedEventArgs());
-        NavigationReleases(this, new RoutedEventArgs());
         return "PASS WPF interactive TEMP CatalogService navigation controls: " +
             "real Release/Disc ComboBox SelectionChanged events routed to real DataGrid, " +
             "3/2/2 rows, filter and back-to-releases, stored TOC/CD-TEXT/CDX detail transitions; no production files";
