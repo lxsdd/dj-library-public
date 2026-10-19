@@ -96,3 +96,11 @@ Further tests must compare backward-from-first-cell and direct
 post-table focus transfers, not mistakenly treat large forward
 cell traversal as a proven WCAG trap. Upstream #443 still warrants
 real host keyboard and screen-reader validation.
+
+## Fair A/B geometry follow-up (pending SHA-specific Windows CI)
+
+A source audit found that WPF started with 6×160px columns, WinUI
+with 6×250px. A later isolated change sets both to 6×250px and
+checks these dimensions in the real GUI smoke, preserving horizontal
+virtualization assertions. Previous render/memory samples must not
+be treated as matched-layout performance evidence.

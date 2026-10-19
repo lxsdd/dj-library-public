@@ -56,6 +56,10 @@ public sealed partial class MainWindow
     {
         var evidence = new List<string>();
         await YieldToUiAsync();
+        if (TracksGrid.Columns.Count != 6 ||
+            TracksGrid.Columns.Any(c => c.Width.GridUnitType != GridUnitType.Pixel ||
+                                        Math.Abs(c.Width.Value - 250) > 0.01))
+            throw new InvalidOperationException("WinUI A/B column geometry must use six 250px columns");
         foreach (int size in SyntheticCatalog.SupportedSizes)
         {
             SizeSelector.SelectedIndex = Array.IndexOf(SyntheticCatalog.SupportedSizes, size);

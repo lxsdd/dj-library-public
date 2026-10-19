@@ -19,3 +19,22 @@ Do not rank frameworks from these stopwatch values.
 runs on the same Windows machine, capture median/p95, private working set, DPI
 100/150/200%, selection/focus/keyboard/horizontal wheel/column persistence,
 dark mode and deployment. Do not replace production WPF based on compile PASS.
+
+## Equal-width A/B correction (2026-10-19)
+
+The previous WPF baseline used six **160px** columns while WinUI's
+TableView used six **250px** columns, causing unequal horizontal overflow
+and realized-column counts despite identical 1000×840 window requests.
+That was **not** an equal-layout performance comparison.
+
+The experiment now explicitly checks six 250px pixel-sized columns
+in both real windows and uses the same synthetic fixture sizes. The
+existing scroll/resize/selection/metadata/navigation gates remain
+mandatory. WPF, like WinUI, may virtualize horizontal UIA column
+headers: require valid logical Grid shape and record the subset of
+**currently realized** headers, without inventing offscreen peers.
+
+Even with corrected column widths, actual row templates, typography,
+measurement pipeline and hardware rendering remain different. A/B
+compositor callback latency is **not** end-to-end input-to-photon
+latency, and no production winner can be declared from CI samples.
