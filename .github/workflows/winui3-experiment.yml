@@ -55,6 +55,9 @@ jobs:
             foreach ($n in @('1,345','15,000','54,129','100,000')) {
               if (-not $txt.Contains("PASS $n synthetic")) { throw "WPF compositor report missing $n" }
             }
+            if (-not $txt.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:')) {
+              throw 'WPF native DJ Library production-model runtime gate was not executed'
+            }
           } finally {
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
             $process.Dispose()
@@ -102,6 +105,9 @@ jobs:
             if (-not $result.Contains('PASS WinUI scrolling:')) {
               throw 'WinUI TableView programmatic horizontal/vertical scroll was not executed'
             }
+            if (-not $result.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:')) {
+              throw 'WinUI native DJ Library production-model runtime gate was not executed'
+            }
           }
           finally {
             if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
@@ -144,8 +150,10 @@ jobs:
               throw "Published WPF runtime failed, exit $($p.ExitCode)"
             }
             $text = Get-Content -LiteralPath $wpfReport -Raw
-            if (-not $text.StartsWith("PASS`n") -or -not $text.Contains('PASS 100,000 synthetic WPF')) {
-              throw 'Published WPF failed real window synthetic runtime assertions'
+            if (-not $text.StartsWith("PASS`n") -or
+                -not $text.Contains('PASS 100,000 synthetic WPF') -or
+                -not $text.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:')) {
+              throw 'Published WPF failed real-window/native-model runtime assertions'
             }
           }
           finally {
@@ -166,8 +174,9 @@ jobs:
                 -not $text.Contains('PASS 100,000 synthetic WinUI') -or
                 -not $text.Contains('PASS WinUI columns: in-memory JSON') -or
                 -not $text.Contains('PASS WinUI accessibility:') -or
-                -not $text.Contains('PASS WinUI scrolling:')) {
-              throw 'Published WinUI 3 failed real window synthetic runtime assertions'
+                -not $text.Contains('PASS WinUI scrolling:') -or
+                -not $text.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:')) {
+              throw 'Published WinUI 3 failed real-window/native-model runtime assertions'
             }
           }
           finally {
