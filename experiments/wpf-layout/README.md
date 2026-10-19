@@ -33,3 +33,15 @@ the XML wire bytes of old historical releases. Unknown historical
 members, malformed profile recovery, concurrent saves and real user
 runtime acceptance remain separate gates. No production mutation,
 migration or permission to replace the installed WPF application.
+
+## Pre-WidthUnit historical XML fallback (2026-10-20)
+
+A handcrafted, purely synthetic legacy `<AppSettings>` document
+deliberately omits modern `WidthUnit`, `GridLayouts` and
+`WindowGeometries`. The same production serializer and
+`SettingsManager.RestoreColumnWidth` must parse it under *both*
+frameworks, recover the 186.5-pixel `ARTIST` width (rather than
+inventing Star/Auto units), retain the old sort and selected tab,
+and initialize absent new named collections safely. The diagnostic
+report includes these values in the strict cross-runtime comparison.
+No actual user configuration is opened or written.

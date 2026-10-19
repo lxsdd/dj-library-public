@@ -106,9 +106,48 @@ internal static class PersistenceCompatibilitySnapshot
                 Math.Abs(restored.WindowGeometries[1].Height - 622.25) < 0.00001,
             "maximized state or fractional geometry lost");
 
+        // A deliberately sparse, PRE WidthUnit sample simulates a historical
+        // settings.xml. It is read from a StringReader, never a user profile.
+        // Omitted named layouts and window geometries must retain safe defaults.
+        const string historicXml =
+            "<AppSettings>" +
+            "<WindowLeft>42.5</WindowLeft><WindowTop>81</WindowTop>" +
+            "<WindowWidth>1200</WindowWidth><WindowHeight>710</WindowHeight>" +
+            "<Maximized>true</Maximized><SelectedTab>1</SelectedTab>" +
+            "<TrackColumns><ColumnSetting>" +
+            "<Key>ARTIST</Key><DisplayIndex>0</DisplayIndex>" +
+            "<Width>186.5</Width><Visible>true</Visible>" +
+            "</ColumnSetting></TrackColumns>" +
+            "<TrackSorts><SortSetting><Property>ARTIST</Property>" +
+            "<Descending>true</Descending></SortSetting></TrackSorts>" +
+            "<BridgeDirectory>X:\SYNTHETIC_ONLY\legacy</BridgeDirectory>" +
+            "</AppSettings>";
+        AppSettings historic;
+        using (var reader = new StringReader(historicXml))
+            historic = (AppSettings)serializer.Deserialize(reader);
+        Require(historic.SelectedTab == 1 && historic.Maximized &&
+                historic.TrackColumns.Count == 1 && historic.TrackSorts.Count == 1,
+            "old sparse XML global/column/sort settings lost");
+        Require(historic.TrackColumns[0].WidthUnit == "" &&
+                SettingsManager.RestoreColumnWidth(historic.TrackColumns[0]).UnitType ==
+                    System.Windows.Controls.DataGridLengthUnitType.Pixel &&
+                Math.Abs(SettingsManager.RestoreColumnWidth(historic.TrackColumns[0]).Value - 186.5) < 0.001,
+            "legacy WidthUnit omission must restore exact pixel width");
+        Require(historic.GridLayouts != null && historic.GridLayouts.Count == 0 &&
+                historic.WindowGeometries != null && historic.WindowGeometries.Count == 0,
+            "missing newly introduced named state fields do not default to safe empty collections");
+
         var report = new StringBuilder();
         report.AppendLine("PASS WPF cross-runtime AppSettings semantic XML: v1");
         report.AppendLine("tab=" + restored.SelectedTab.ToString(Culture));
+        report.AppendLine("historic-tab=" + historic.SelectedTab.ToString(Culture));
+        report.AppendLine("historic-max=" + historic.Maximized);
+        report.AppendLine("historic-width=" + SettingsManager.RestoreColumnWidth(
+            historic.TrackColumns[0]).Value.ToString("R", Culture));
+        report.AppendLine("historic-widthunit=" + historic.TrackColumns[0].WidthUnit);
+        report.AppendLine("historic-named=" + historic.GridLayouts.Count + "/" +
+            historic.WindowGeometries.Count);
+
         report.AppendLine("window=" + String.Join(",",
             new [] { restored.WindowLeft, restored.WindowTop, restored.WindowWidth,
                      restored.WindowHeight }.Select(x => x.ToString("R", Culture))));
