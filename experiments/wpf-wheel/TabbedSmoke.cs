@@ -18,7 +18,8 @@ namespace HorizontalWheelSmoke
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
 
-        public static void RunOne(string label, Action<DataGrid> enable)
+        public static void RunOne(string label, Action<Window> enableWindow,
+            Action<DataGrid>? enableGrid)
         {
             var window = new Window
             {
@@ -35,12 +36,16 @@ namespace HorizontalWheelSmoke
             tabs.Items.Add(new TabItem { Header = "CDs", Content = discs });
             window.Content = tabs;
 
-            // DJ Library hooks its Window, MyTagSync hooks Window + grids.
-            // This adapter-specific test must exercise the grid-loaded path
-            // as well as idempotence for each original implementation.
-            enable(tracks);
-            enable(discs);
-            enable(tracks);
+            // Match each application's actual productive initialization path.
+            // DJ Library enables only the Window; MyTagSync enables the Window
+            // and all discovered DataGrid controls.
+            enableWindow(window);
+            if (enableGrid != null)
+            {
+                enableGrid(tracks);
+                enableGrid(discs);
+                enableGrid(tracks);
+            }
             window.Show();
             window.Activate();
             Pump(window);
@@ -84,14 +89,15 @@ namespace HorizontalWheelSmoke
                     throw new InvalidOperationException(label + ": could not return to first column after tab switch");
                 // Repeated registration after the visible Window is loaded
                 // must not attach an additional HwndSourceHook.
-                enable(tracks);
+                enableWindow(window);
+                if (enableGrid != null) enableGrid(tracks);
                 Inject(hwnd, 120);
                 Pump(window);
                 AssertOneStep(label + " repeated Enable", trackScroll.HorizontalOffset);
                 if (Math.Abs(discScroll.HorizontalOffset - 72) > 6)
                     throw new InvalidOperationException(label + ": switching back leaked wheel into hidden CDs tab");
                 Console.WriteLine("PASS " + label +
-                    " two-tab WPF HWND: Tracks/CDs independent +120 notch, idempotent hook, row selection, first-column return");
+                    " two-tab WPF HWND using original production hookup: Tracks/CDs independent +120 notch, idempotent hook, row selection, first-column return");
             }
             finally
             {

@@ -30,3 +30,16 @@ scrolling/vertical routing, mixed DPI, multi-monitor geometry or product
 release acceptance. The currently public files have no explicit LICENSE,
 so a separately published redistributable shared package needs its own
 verified rights/provenance decision before any wider distribution.
+
+## Exact production hook modes
+
+The dual-tab regression additionally mirrors **how each real
+`MainWindow` registers the original helper**. DJ Library calls
+`HorizontalScrollSupport.Enable(this)` on the containing `Window`,
+whereas MyTagSync calls `Enable(this)` plus `Enable(grid)` for
+its discovered tables. These different real production modes now
+run through separate, concrete scenarios (including repeated window
+registration). The original isolated single-grid `Enable(grid)`
+coverage remains in place. Product UI layout, real touchpad hardware,
+end-user multi-monitor and physical-device acceptance still require
+host testing; source correctness on the CI desktop is not a release.

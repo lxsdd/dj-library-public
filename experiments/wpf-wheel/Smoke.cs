@@ -25,8 +25,13 @@ namespace HorizontalWheelSmoke
                 var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
                 RunOne("DJ Library", grid => DJLibrary.HorizontalScrollSupport.Enable(grid));
                 RunOne("rekordbox MyTagSync", grid => RekordboxMyTagSync.HorizontalScrollSupport.Enable(grid));
-                TabbedSmoke.RunOne("DJ Library", grid => DJLibrary.HorizontalScrollSupport.Enable(grid));
-                TabbedSmoke.RunOne("rekordbox MyTagSync", grid => RekordboxMyTagSync.HorizontalScrollSupport.Enable(grid));
+                // Match actual production MainWindow hookups exactly:
+                // DJ Library -> Enable(this), MyTagSync -> Enable(this) + Enable(each DataGrid).
+                TabbedSmoke.RunOne("DJ Library",
+                    window => DJLibrary.HorizontalScrollSupport.Enable(window), null);
+                TabbedSmoke.RunOne("rekordbox MyTagSync",
+                    window => RekordboxMyTagSync.HorizontalScrollSupport.Enable(window),
+                    grid => RekordboxMyTagSync.HorizontalScrollSupport.Enable(grid));
                 app.Shutdown();
                 Console.WriteLine("PASS: both actual horizontal-wheel routers handle single-grid and two-tab WPF windows, repeated enable, selection and scroll isolation");
                 return 0;
