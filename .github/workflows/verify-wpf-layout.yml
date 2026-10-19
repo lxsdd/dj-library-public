@@ -60,7 +60,9 @@ jobs:
           $runtimeArgs += 'WpfLayoutGridActual.cs'
           $runtimeArgs += 'WpfLayoutWindowActual.cs'
           $runtimeArgs += 'WpfLayoutInertFixtures.cs'
-          $runtimeArgs += 'experiments/wpf-layout/CompatibilitySnapshot.cs'
+          # Legacy csc.exe resolves source paths by leaf name; use a root copy.
+          Copy-Item -LiteralPath 'experiments/wpf-layout/CompatibilitySnapshot.cs' -Destination 'WpfLayoutCompatSnapshot.cs'
+          $runtimeArgs += 'WpfLayoutCompatSnapshot.cs'
           & $fx @runtimeArgs
           if ($LASTEXITCODE -ne 0) { throw 'Legacy original-settings serializer runtime compile failed' }
       - uses: actions/setup-dotnet@v4
