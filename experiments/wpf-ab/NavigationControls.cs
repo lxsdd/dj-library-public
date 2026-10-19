@@ -64,7 +64,11 @@ internal sealed partial class ComparisonWindow
 
     private void NavigationReleases(object sender, RoutedEventArgs e)
     {
-        if (_navigation != null) ShowNavigationRows(_navigation.Releases);
+        if (_navigation == null) return;
+        _navigationReleases.SelectedIndex = -1;
+        _navigationDiscs.SelectedIndex = -1;
+        _navigationDiscs.ItemsSource = null;
+        ShowNavigationRows(_navigation.Releases);
     }
 
     private void NavigationReleaseChanged(object sender, SelectionChangedEventArgs e)
@@ -133,6 +137,19 @@ internal sealed partial class ComparisonWindow
             !_status.Text.Contains("CDX: unknown") ||
             !_status.Text.Contains("CD-TEXT: drive_unavailable"))
             throw new InvalidOperationException("WPF unknown CD evidence was incorrectly promoted");
+        _navigationReleases.SelectedItem = _navigation.Releases.Single(r => r.Identity == "release:3");
+        if (_navigationDiscs.Items.Count != 0 || _navigationDiscs.SelectedItem != null ||
+            _grid.Items.Count != 0 || _status.Text.Contains("TOC:"))
+            throw new InvalidOperationException("WPF empty release retained stale disc/track state");
+        NavigationReleases(this, new RoutedEventArgs());
+        if (_navigationReleases.SelectedItem != null || _navigationDiscs.SelectedItem != null ||
+            _navigationDiscs.Items.Count != 0 || _grid.Items.Count != 3 || _status.Text.Contains("TOC:"))
+            throw new InvalidOperationException("WPF returning to Releases retained stale hierarchy state");
+        _navigationReleases.SelectedItem = _navigation.Releases.Single(r => r.Identity == "release:1");
+        _navigationDiscs.SelectedItem = _navigation.ForDiscs(1)[0];
+        if (_grid.Items.Count != 2 || _all[0].Identity != "track:101")
+            throw new InvalidOperationException("WPF could not navigate after empty release");
+        NavigationReleases(this, new RoutedEventArgs());
         NavigationReleases(this, new RoutedEventArgs());
         return "PASS WPF interactive TEMP CatalogService navigation controls: " +
             "real Release/Disc ComboBox SelectionChanged events routed to real DataGrid, " +
