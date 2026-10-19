@@ -51,7 +51,10 @@ internal sealed partial class ComparisonWindow
         if (!_grid.SelectedItems.OfType<SyntheticTrackRow>()
             .Select(t => t.Identity).ToHashSet(StringComparer.Ordinal)
             .SetEquals(new[] {"release:1","release:3"}))
-            throw new InvalidOperationException("WPF release selection did not survive disc navigation");
+            throw new InvalidOperationException("WPF release selection did not survive disc navigation. " +
+                "Grid=[" + string.Join(",", _grid.SelectedItems.OfType<SyntheticTrackRow>().Select(t => t.Identity)) + "], " +
+                "remembered=[" + string.Join(",", _selectionIds.OrderBy(x=>x)) + "], " +
+                "releases=[" + string.Join(",", snapshot.Releases.Select(t => t.Identity)) + "]");
         return "PASS WPF original CatalogService release/disc/track navigation: " +
             "3 releases, 3 discs, 5 tracks, empty release, multi-disc, TOC and scoped search; " +
             "real DataGrid hierarchy views/filter/sort/stable cross-view selection; " +
