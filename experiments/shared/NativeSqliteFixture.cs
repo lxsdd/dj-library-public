@@ -31,6 +31,20 @@ namespace DJLibrary
             return duration.TotalHours >= 1 ? duration.ToString(@"h\:mm\:ss")
                 : duration.ToString(@"m\:ss");
         }
+
+        // Exact search predicate from production UiHelpers.cs, needed by
+        // unchanged CatalogService.SearchDocuments. No UI binding involved.
+        public static bool ContainsAllTerms(string haystack, string search)
+        {
+            if (string.IsNullOrWhiteSpace(search)) return true;
+            if (haystack == null) haystack = "";
+            string[] terms = search.Split(new char[] { ' ', '\t' },
+                StringSplitOptions.RemoveEmptyEntries);
+            for (int i = 0; i < terms.Length; i++)
+                if (haystack.IndexOf(terms[i], StringComparison.OrdinalIgnoreCase) < 0)
+                    return false;
+            return true;
+        }
     }
 
     public sealed partial class CatalogService
