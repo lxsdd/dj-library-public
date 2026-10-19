@@ -14,3 +14,22 @@ This test deliberately **does not call** production `SettingsManager.Save`, `Loa
 Limitations: WPF runtime success here is only a Windows synthetic HWND + in-memory serialization contract. Real consumer startup/closing event wiring, forced settings corruption, concurrent writes, DPI/dual monitors, portable installation, native touchpad and user-host acceptance remain open and must not be claimed.
 
 This is a release-independent experiment linked to [lxsdd/dev-infrastructure#18](https://github.com/lxsdd/dev-infrastructure/issues/18); do not silently merge/replace existing application settings or window implementations.
+
+## Runtime-to-runtime XML compatibility check (2026-10-20)
+
+The same pinned, original production `AppSettings`, `ColumnSetting`,
+`NamedGridLayout` and `NamedWindowGeometry` sources now run via
+`XmlSerializer` in **both** .NET Framework 4.8 and .NET 10, not just
+compile. Synthetic, explicitly non-user data tests named window
+geometries, maximized flags, field-level settings, Unicode path/name
+round trips, column order, Star/Pixel widths, hidden columns and sort
+directions. Reports compare a deterministic **deserialized semantic
+fingerprint** between runtimes; differences FAIL Windows CI. The
+serializer operates entirely in memory and writes only to
+`$RUNNER_TEMP` when given an explicit test report path.
+
+**Scope:** same model/fixture, neither actual user settings files nor
+the XML wire bytes of old historical releases. Unknown historical
+members, malformed profile recovery, concurrent saves and real user
+runtime acceptance remain separate gates. No production mutation,
+migration or permission to replace the installed WPF application.

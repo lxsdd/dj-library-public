@@ -18,6 +18,10 @@ internal static class Program
     {
         try
         {
+            // The identical semantic XML snapshot also runs in a legacy .NET
+            // Framework executable. This report is written only when a CI
+            // temporary path is explicitly provided, never to APPDATA.
+            PersistenceCompatibilitySnapshot.WriteReportFromEnvironment();
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
 
             // The built-in production contracts must still pass with real source files.

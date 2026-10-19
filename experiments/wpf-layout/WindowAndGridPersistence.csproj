@@ -6,6 +6,7 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <StartupObject>Program</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <!-- Exercise the actual, unchanged production persistence implementation. -->
@@ -15,5 +16,6 @@
     <!-- Only unrelated external product configuration types are substituted. -->
     <Compile Include="Fixtures.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="CompatibilitySnapshot.cs" />
   </ItemGroup>
 </Project>

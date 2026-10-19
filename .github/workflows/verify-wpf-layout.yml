@@ -48,6 +48,21 @@ jobs:
           $args += 'WpfLayoutInertFixtures.cs'
           & $fx @args
           if ($LASTEXITCODE -ne 0) { throw 'Production WPF persistence source not compatible with .NET Framework' }
+          # Execute the SAME original XML settings source under .NET Framework,
+          # not just a cross-compiler check. No APPDATA/production profile.
+          $runtimeArgs = @('/nologo','/target:exe','/main:PersistenceCompatibilitySnapshot',
+            '/out:wpf-layout-legacy-serializer.exe')
+          foreach ($n in $a) {
+            $runtimeArgs += "/reference:$(Join-Path $r "$n.dll")"
+          }
+          $runtimeArgs += "/reference:$(Join-Path $r 'System.Xml.dll')"
+          $runtimeArgs += 'WpfLayoutSettingsActual.cs'
+          $runtimeArgs += 'WpfLayoutGridActual.cs'
+          $runtimeArgs += 'WpfLayoutWindowActual.cs'
+          $runtimeArgs += 'WpfLayoutInertFixtures.cs'
+          $runtimeArgs += 'experiments/wpf-layout/CompatibilitySnapshot.cs'
+          & $fx @runtimeArgs
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy original-settings serializer runtime compile failed' }
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.401'
@@ -60,7 +75,15 @@ jobs:
         shell: pwsh
         run: |
           $report = Join-Path $env:RUNNER_TEMP 'wpf-layout-smoke-error.txt'
+          $legacy = Join-Path $env:RUNNER_TEMP 'wpf-layout-legacy-settings.txt'
+          $modern = Join-Path $env:RUNNER_TEMP 'wpf-layout-modern-settings.txt'
           $env:WPF_LAYOUT_SMOKE_REPORT = $report
+          $env:WPF_LAYOUT_COMPAT_REPORT = $legacy
+          & '.\wpf-layout-legacy-serializer.exe'
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $legacy)) {
+            throw 'Legacy .NET Framework original-settings runtime snapshot failed'
+          }
+          $env:WPF_LAYOUT_COMPAT_REPORT = $modern
           $p = Start-Process dotnet -ArgumentList @('run','--project','experiments/wpf-layout/WindowAndGridPersistence.csproj','-c','Release','--no-build') -PassThru
           try {
             if (-not $p.WaitForExit(85000)) { throw 'Actual-WPF persistence smoke timed out' }
@@ -68,6 +91,20 @@ jobs:
               if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
               throw "Actual-WPF persistence smoke failed ($($p.ExitCode))"
             }
+            if (-not (Test-Path -LiteralPath $modern)) {
+              throw 'Modern .NET 10 original-settings runtime snapshot missing'
+            }
+            $legacyResult = Get-Content -LiteralPath $legacy -Raw -Encoding utf8
+            $modernResult = Get-Content -LiteralPath $modern -Raw -Encoding utf8
+            if ($legacyResult -cne $modernResult) {
+              Write-Host "LEGACY: $legacyResult"
+              Write-Host "MODERN: $modernResult"
+              throw 'BREAKING: Same original AppSettings XML semantic result differs between .NET Framework 4.8 and .NET 10'
+            }
+            if (-not $modernResult.Contains('PASS WPF cross-runtime AppSettings semantic XML:')) {
+              throw 'Missing expected WPF semantic settings contract report'
+            }
+            Write-Host 'PASS WPF cross-runtime AppSettings semantic XML: .NET Framework 4.8 and .NET 10 agree'
           }
           finally {
             if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
@@ -76,5 +113,5 @@ jobs:
       - name: Qualification boundary
         shell: pwsh
         run: |
-          Write-Host 'PASS: original production WPF layout sources compile on both runtimes and synthetic real windows round-trip in-memory state.'
+          Write-Host 'PASS: original production WPF layout sources compile on both runtimes, runtime XML semantics agree and synthetic real windows round-trip in-memory state.'
           Write-Host 'PENDING: real consumer settings file writes, event wiring, DPI, multi-monitor and end-user GUI acceptance.'
