@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Smoke.cs" />
+    <Compile Include="TabbedSmoke.cs" />
     <!-- Compile the ACTUAL product code, not a surrogate wheel-scrolling implementation. -->
     <Compile Include="../../src/HorizontalScrollSupport.cs" Link="DJLibrary.HorizontalScrollSupport.cs" />
     <Compile Include="../../upstream/mytag/src/RekordboxMyTagSync/HorizontalScrollSupport.cs" Link="RekordboxMyTagSync.HorizontalScrollSupport.cs" />
