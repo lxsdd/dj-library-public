@@ -10,6 +10,7 @@ public sealed partial class MainWindow
     private async Task<string> VerifyHierarchicalNavigationAsync()
     {
         var snapshot = CatalogNavigationFixture.Load();
+        TracksGrid.SelectedItems.Clear();
         _selectionIds.Clear();
         async Task NavigateAsync(System.Collections.Generic.List<SyntheticTrackRow> rows)
         {
@@ -54,7 +55,7 @@ public sealed partial class MainWindow
         await NavigateAsync(snapshot.Releases);
         if (!TracksGrid.SelectedItems.OfType<SyntheticTrackRow>()
             .Select(t => t.Identity).ToHashSet(StringComparer.Ordinal)
-            .SetEquals(new[] {"release:1","release:3"}))
+            .SetEquals(new[] {snapshot.Releases[0].Identity, snapshot.Releases[^1].Identity}))
             throw new InvalidOperationException("WinUI release selection did not survive disc navigation");
         return "PASS WinUI original CatalogService release/disc/track navigation: " +
             "3 releases, 3 discs, 5 tracks, empty release, multi-disc, TOC and scoped search; " +

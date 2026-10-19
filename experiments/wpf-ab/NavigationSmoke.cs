@@ -9,6 +9,7 @@ internal sealed partial class ComparisonWindow
     private string VerifyHierarchicalNavigation()
     {
         var snapshot = CatalogNavigationFixture.Load();
+        _grid.SelectedItems.Clear();
         _selectionIds.Clear();
         void Navigate(System.Collections.Generic.List<SyntheticTrackRow> rows)
         {
@@ -50,7 +51,7 @@ internal sealed partial class ComparisonWindow
         Navigate(snapshot.Releases);
         if (!_grid.SelectedItems.OfType<SyntheticTrackRow>()
             .Select(t => t.Identity).ToHashSet(StringComparer.Ordinal)
-            .SetEquals(new[] {"release:1","release:3"}))
+            .SetEquals(new[] {snapshot.Releases[0].Identity, snapshot.Releases[^1].Identity}))
             throw new InvalidOperationException("WPF release selection did not survive disc navigation. " +
                 "Grid=[" + string.Join(",", _grid.SelectedItems.OfType<SyntheticTrackRow>().Select(t => t.Identity)) + "], " +
                 "remembered=[" + string.Join(",", _selectionIds.OrderBy(x=>x)) + "], " +
