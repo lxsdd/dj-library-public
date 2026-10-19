@@ -113,12 +113,17 @@ public sealed partial class MainWindow
                     $"WinUI explicit deselection was not preserved at {size:N0}: " +
                     string.Join(",", selected));
 
+            using var currentProcess = Process.GetCurrentProcess();
+            currentProcess.Refresh();
+            var privateMiB = currentProcess.PrivateMemorySize64 / 1048576.0;
+            var workingMiB = currentProcess.WorkingSet64 / 1048576.0;
             evidence.Add(
                 $"PASS {size:N0} synthetic WinUI TableView rows, real window layout " +
                 $"{TracksGrid.ActualWidth:F0}x{TracksGrid.ActualHeight:F0}, " +
                 $"next compositor callback median {frameMs:F1} ms, " +
-                $"p95 sample {p95Ms:F1} ms (5 samples), filter {filteredCount:N0}, " +
-                "sort, selection/restoration, explicit deselection");
+                $"p95 sample {p95Ms:F1} ms (5 samples), " +
+                $"process private {privateMiB:F1} MiB, working set {workingMiB:F1} MiB, " +
+                $"filter {filteredCount:N0}, sort, selection/restoration, explicit deselection");
         }
         // Programmatic column state is a prerequisite to preserving the
         // user's named grid layout, not a claim of end-user drag/drop parity.
