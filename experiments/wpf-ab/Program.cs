@@ -208,13 +208,20 @@ internal sealed partial class ComparisonWindow : Window
         if (tableProvider == null)
             throw new InvalidOperationException("WPF DataGrid UIA Table provider missing");
         var columnHeaders = tableProvider.GetColumnHeaders();
-        if (columnHeaders == null || columnHeaders.Length != gridProvider.ColumnCount)
+        // Unlike TableView, stock WPF DataGrid's ITableProvider can return
+        // null for GetColumnHeaders() even when column headers are visibly
+        // rendered. Record this as a real baseline limitation; do not fake
+        // parity or fail the unchanged production baseline for it.
+        if (columnHeaders != null && columnHeaders.Length != gridProvider.ColumnCount)
             throw new InvalidOperationException(
                 $"WPF DataGrid UIA column-header mismatch: " +
-                $"got {columnHeaders?.Length ?? -1} / expected {gridProvider.ColumnCount}");
+                $"got {columnHeaders.Length} / expected {gridProvider.ColumnCount}");
+        string headerAssessment = columnHeaders == null
+            ? "Table header provider enumeration unavailable (observed WPF baseline limitation)"
+            : $"{columnHeaders.Length} Table column-header providers";
         string automationReport =
             $"PASS WPF accessibility: UIA Grid {gridProvider.RowCount}x{gridProvider.ColumnCount}, " +
-            $"Selection and Table patterns, {columnHeaders.Length} navigable headers " +
+            $"Selection and Table patterns; {headerAssessment} " +
             "(not physical screen-reader/keyboard acceptance)";
         report.Add(automationReport);
         Console.WriteLine(automationReport);
