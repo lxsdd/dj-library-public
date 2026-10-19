@@ -10,5 +10,8 @@
   <ItemGroup>
     <Compile Include="../shared/SyntheticCatalog.cs" Link="SyntheticCatalog.cs" />
     <Compile Include="../shared/SyntheticSelection.cs" Link="SyntheticSelection.cs" />
+    <!-- Exact, unmodified production DJ Library native SQLite-projection model. -->
+    <Compile Include="../../src/CatalogNativeModels.cs" Link="Production/CatalogNativeModels.cs" />
+    <Compile Include="../shared/NativeTrackProjection.cs" Link="Shared/NativeTrackProjection.cs" />
   </ItemGroup>
 </Project>
