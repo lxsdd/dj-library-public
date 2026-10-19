@@ -186,9 +186,20 @@ internal sealed partial class ComparisonWindow : Window
             as System.Windows.Automation.Provider.ISelectionProvider;
         if (selectionProvider == null)
             throw new InvalidOperationException("WPF DataGrid UIA Selection provider missing");
+        var tableProvider = automationPeer.GetPattern(
+            System.Windows.Automation.Peers.PatternInterface.Table)
+            as System.Windows.Automation.Provider.ITableProvider;
+        if (tableProvider == null)
+            throw new InvalidOperationException("WPF DataGrid UIA Table provider missing");
+        var columnHeaders = tableProvider.GetColumnHeaders();
+        if (columnHeaders == null || columnHeaders.Length != gridProvider.ColumnCount)
+            throw new InvalidOperationException(
+                $"WPF DataGrid UIA column-header mismatch: " +
+                $"got {columnHeaders?.Length ?? -1} / expected {gridProvider.ColumnCount}");
         string automationReport =
             $"PASS WPF accessibility: UIA Grid {gridProvider.RowCount}x{gridProvider.ColumnCount}, " +
-            "Selection pattern (not a physical screen-reader or keyboard acceptance test)";
+            $"Selection and Table patterns, {columnHeaders.Length} navigable headers " +
+            "(not physical screen-reader/keyboard acceptance)";
         report.Add(automationReport);
         Console.WriteLine(automationReport);
 
