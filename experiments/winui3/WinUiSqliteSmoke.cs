@@ -9,7 +9,7 @@ public sealed partial class MainWindow
 {
     private async Task<string> VerifyDisposableSqliteBindingAsync()
     {
-        var rows = NativeSqliteFixture.LoadReadOnlySqlite(1_345);
+        var rows = NativeSqliteFixture.LoadReadOnlySqlite(54_129);
         _selectionIds.Clear();
         _all = rows;
         SearchBox.Text = "";
@@ -33,7 +33,7 @@ public sealed partial class MainWindow
             throw new InvalidOperationException(
                 "WinUI SQLite-backed native row projection lost selected catalog identities");
         return "PASS WinUI read-only SQLite CatalogService.GetNativeTracks: " +
-            "original native WinSqlite SQL, 1345 temporary database tracks, " +
+            "original native WinSqlite SQL, 54,129 temporary database tracks, " +
             "real TableView filter/sort and stable multi-selection; " +
             "PRAGMA query_only write rejection and unchanged fixture SHA-256";
     }
