@@ -36,7 +36,8 @@ public partial class App : Application
         {
             if (smoke)
             {
-                WriteSmokeResult("FAIL\n" + ex);
+                var partial = (_window as MainWindow)?.PartialSmokeEvidence ?? "";
+                WriteSmokeResult("FAIL\n" + ex + "\nCOMPLETED_BEFORE_FAILURE\n" + partial);
                 Environment.ExitCode = 1;
             }
             else

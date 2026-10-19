@@ -123,6 +123,7 @@ jobs:
             }
             if (-not $result.Contains('KEYBOARD_FOCUS_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI keyboard-focus diagnostic did not execute' }
             if (-not $result.Contains('REVERSE_TAB_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI reverse Tab gate did not execute' }
+            if (-not $result.Contains('PASS WinUI boundary Shift+Tab:')) { throw 'WinUI boundary keyboard exit did not pass' }
             if (-not $result.Contains('FOCUS_TRANSFER_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI explicit focus transfer test missing' }
             if (-not $result.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:')) {
               throw 'WinUI native DJ Library production-model runtime gate was not executed'
@@ -217,6 +218,7 @@ jobs:
                 -not $text.Contains('PASS WinUI scrolling:') -or
                 -not $text.Contains('KEYBOARD_FOCUS_OBSERVATION WinUI v1.5.1:') -or
                 -not $text.Contains('REVERSE_TAB_OBSERVATION WinUI v1.5.1:') -or
+                -not $text.Contains('PASS WinUI boundary Shift+Tab:') -or
                 -not $text.Contains('FOCUS_TRANSFER_OBSERVATION WinUI v1.5.1:') -or
                 -not $text.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:') -or
                 -not $text.Contains('PASS WinUI original BridgeSnapshotReader v3 TEMP:') -or

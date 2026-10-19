@@ -28,6 +28,8 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        TracksGrid.FocusBeforeTable = FocusEscapeTarget;
+        TracksGrid.FocusAfterTable = FocusEscapeTarget;
         // Both A/B applications request the same 1000 x 840 outer-window size.
         // The Windows host may clamp it; each smoke records its ACTUAL
         // grid viewport to prevent unsupported performance conclusions.

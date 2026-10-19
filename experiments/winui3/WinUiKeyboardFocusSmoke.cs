@@ -162,4 +162,40 @@ public sealed partial class MainWindow
         finally { TracksGrid.RemoveHandler(UIElement.KeyDownEvent, observer); }
     }
 
+    private async Task<string> VerifyBoundaryKeyboardEscapeAsync()
+    {
+        if (_all.Count != 100_000 || TracksGrid.Items.Count != 100_000)
+            throw new InvalidOperationException("Boundary Shift+Tab test requires 100000 tracks");
+        IntPtr hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        SetForegroundWindow(hwnd);
+        await YieldToUiAsync();
+        if (GetForegroundWindow() != hwnd)
+            return "INCONCLUSIVE WinUI boundary Shift+Tab: no foreground CI desktop";
+        TracksGrid.ScrollIntoView(_all[0]);
+        TracksGrid.CurrentCellSlot = new WinUI.TableView.TableViewCellSlot(0, 0);
+        await AwaitActualFrameAsync();
+        await YieldToUiAsync();
+        TracksGrid.Focus(FocusState.Keyboard);
+        await YieldToUiAsync();
+        if (!HasTableAncestor(FocusManager.GetFocusedElement(TracksGrid.XamlRoot), TracksGrid))
+            return "INCONCLUSIVE WinUI boundary Shift+Tab: could not focus table";
+        keybd_event(0x10, 0, 0, UIntPtr.Zero);
+        try
+        {
+            keybd_event(0x09, 0, 0, UIntPtr.Zero);
+            keybd_event(0x09, 0, 0x0002, UIntPtr.Zero);
+        }
+        finally { keybd_event(0x10, 0, 0x0002, UIntPtr.Zero); }
+        await Task.Delay(150);
+        await YieldToUiAsync();
+        await AwaitActualFrameAsync();
+        var current = FocusManager.GetFocusedElement(TracksGrid.XamlRoot);
+        if (!ReferenceEquals(current, FocusEscapeTarget))
+            throw new InvalidOperationException("WinUI boundary Shift+Tab did not escape " +
+                "first cell, focus=" + (current?.GetType().Name ?? "<none>") +
+                " slot=" + TracksGrid.CurrentCellSlot);
+        return "PASS WinUI boundary Shift+Tab: first cell exited to outside focus button " +
+               "without last-row wrap; not physical keyboard/NVDA acceptance";
+    }
+
 }

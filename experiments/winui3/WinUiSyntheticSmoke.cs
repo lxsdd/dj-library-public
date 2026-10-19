@@ -12,6 +12,7 @@ namespace DJLibrary.WinUiSpike;
 
 public sealed partial class MainWindow
 {
+    internal string PartialSmokeEvidence { get; private set; } = "";
     private async Task<double> AwaitActualFrameAsync()
     {
         // Unlike the existing ItemsSource stopwatch, this awaits the WinUI
@@ -55,6 +56,11 @@ public sealed partial class MainWindow
     internal async Task<string> RunSyntheticSmokeAsync()
     {
         var evidence = new List<string>();
+        void Record(string value)
+        {
+            evidence.Add(value);
+            PartialSmokeEvidence = string.Join("\n", evidence);
+        }
         await YieldToUiAsync();
         if (TracksGrid.Columns.Count != 6 ||
             TracksGrid.Columns.Any(c => c.Width.GridUnitType != GridUnitType.Pixel ||
@@ -121,7 +127,7 @@ public sealed partial class MainWindow
             currentProcess.Refresh();
             var privateMiB = currentProcess.PrivateMemorySize64 / 1048576.0;
             var workingMiB = currentProcess.WorkingSet64 / 1048576.0;
-            evidence.Add(
+            Record(
                 $"PASS {size:N0} synthetic WinUI TableView rows, real window layout " +
                 $"{TracksGrid.ActualWidth:F0}x{TracksGrid.ActualHeight:F0}, " +
                 $"next compositor callback median {frameMs:F1} ms, " +
@@ -131,17 +137,18 @@ public sealed partial class MainWindow
         }
         // Programmatic column state is a prerequisite to preserving the
         // user's named grid layout, not a claim of end-user drag/drop parity.
-        evidence.Add(VerifySyntheticColumnStateRoundTrip());
-        evidence.Add(VerifyTableAccessibilityContract());
-        evidence.Add(await ProbeKeyboardFocusEscapeAsync());
-        evidence.Add(await ProbeReverseKeyboardBoundaryAsync());
-        evidence.Add(await ProbeExplicitFocusTransferAsync());
-        evidence.Add(await VerifyProgrammaticScrollContractAsync());
-        evidence.Add(await VerifyNativeCatalogBindingAsync());
-        evidence.Add(await VerifyHierarchicalNavigationAsync());
-        evidence.Add(await VerifyNavigationSelectorsAsync());
-        evidence.Add(await VerifyBridgeSnapshotBindingAsync());
-        evidence.Add(await VerifyDisposableSqliteBindingAsync());
+        Record(VerifySyntheticColumnStateRoundTrip());
+        Record(VerifyTableAccessibilityContract());
+        Record(await ProbeKeyboardFocusEscapeAsync());
+        Record(await ProbeReverseKeyboardBoundaryAsync());
+        Record(await VerifyBoundaryKeyboardEscapeAsync());
+        Record(await ProbeExplicitFocusTransferAsync());
+        Record(await VerifyProgrammaticScrollContractAsync());
+        Record(await VerifyNativeCatalogBindingAsync());
+        Record(await VerifyHierarchicalNavigationAsync());
+        Record(await VerifyNavigationSelectorsAsync());
+        Record(await VerifyBridgeSnapshotBindingAsync());
+        Record(await VerifyDisposableSqliteBindingAsync());
         return string.Join("\n", evidence) +
             "\nNOT TESTED: user drag gestures, native horizontal touchpad, real settings path, " +
             "monitor scanout, packaging, user catalog, mixed-DPI, physical input, Narrator/NVDA or visual parity.";

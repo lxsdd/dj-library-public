@@ -85,6 +85,9 @@ public sealed partial class MainWindow
             // ActualWidth and Width. Calling only Width is not a supported
             // equivalent of its realized-column resize path.
             TracksGrid.Columns[0].ActualWidth = oldWidth + 120;
+            // Re-measure after programmatic column resizing. Never relax the extent gate.
+            horizontal.InvalidateMeasure();
+            TracksGrid.InvalidateMeasure();
             TracksGrid.UpdateLayout();
             await AwaitActualFrameAsync();
             await YieldToUiAsync();

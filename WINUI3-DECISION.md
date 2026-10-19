@@ -120,3 +120,19 @@ The assertion threshold is **unchanged**. Diagnostic exceptions
 now record viewport, scroll extent, realized column widths and all
 inner scroll viewers, so a future failure can distinguish stale
 extent from lost realization without hiding a regression.
+
+## Temporary boundary-keyboard and layout-invalidation trial (CI pending)
+
+Upstream WinUI.TableView v1.5.1 consumes Tab and wraps first/last cells.
+This isolated prototype now subclasses the read-only table, detecting a
+**true** first/last current-cell boundary and focusing an external button
+rather than invoking the wrapping vendor handler. Interior navigation is
+unchanged. An exact foreground input Shift+Tab test must prove escape.
+Only the experiment uses this adapter; no upstream or product source is
+patched.
+
+The WinUI programmatic resize now explicitly invalidates the grid and
+inner ScrollViewer's measure before the already-strict scroll extent
+assertion. A PASS would verify this workaround only, not prove the
+upstream library is natively stable. On FAIL, completed earlier smoke
+results are preserved in the CI report to accelerate diagnosis.
