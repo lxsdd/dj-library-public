@@ -55,7 +55,7 @@ jobs:
           foreach ($n in $a) {
             $runtimeArgs += "/reference:$(Join-Path $r "$n.dll")"
           }
-          $runtimeArgs += "/reference:$(Join-Path $r 'System.Xml.dll')"
+          # System.Xml is already a compiler-default reference on legacy csc.exe.
           $runtimeArgs += 'WpfLayoutSettingsActual.cs'
           $runtimeArgs += 'WpfLayoutGridActual.cs'
           $runtimeArgs += 'WpfLayoutWindowActual.cs'
