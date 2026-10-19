@@ -1,3 +1,5 @@
+// Isolated real-source DJ Library catalog bootstrap and native SQLite UI fixture.
+// Every writable database path is generated INSIDE a new private %TEMP% directory.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -8,32 +10,49 @@ using DJLibrary;
 
 namespace DJLibrary
 {
-    // TEST ONLY: minimal host for the ACTUAL production CatalogService.NativeProjection.cs.
-    // It replaces only the wider CatalogService bootstrap/metadata editors, not its
-    // GetNativeTracks SQL, result projection, or original WinSqliteDb implementation.
-    // This is NOT a full product CatalogService startup/DB migration test.
+    // TEST-ONLY guard: any accidental production-default-catalog lookup fails
+    // before access to local/roaming user application settings.
+    internal static class SettingsManager
+    {
+        public static string SettingsDirectory
+        {
+            get { throw new InvalidOperationException("User profile catalog/settings access forbidden in WinUI A/B fixture"); }
+        }
+    }
+
+    // CatalogModels depends on this display helper; the REAL production
+    // CatalogService, its migration, undo, serializer and SQL are unchanged.
+    public static class UiHelpers
+    {
+        public static string FormatDuration(double seconds)
+        {
+            if (seconds <= 0) return "—";
+            var duration = TimeSpan.FromSeconds(Math.Round(seconds));
+            return duration.TotalHours >= 1 ? duration.ToString(@"h\:mm\:ss")
+                : duration.ToString(@"m\:ss");
+        }
+    }
+
     public sealed partial class CatalogService
     {
-        private readonly WinSqliteDb _db;
-        internal CatalogService(WinSqliteDb db) { _db = db; }
-        private static string ToStringValue(object value) =>
-            value == null ? "" : Convert.ToString(value, CultureInfo.InvariantCulture);
-        private static long ToLong(object value) =>
-            value == null ? 0 : Convert.ToInt64(value, CultureInfo.InvariantCulture);
-        private static double ToDouble(object value) =>
-            value == null ? 0 : Convert.ToDouble(value, CultureInfo.InvariantCulture);
-        public CatalogCounts GetCounts() => new CatalogCounts
+        // Test-only partial extension: switch ORIGINAL private native SQLite
+        // handle to read-only query mode after full production startup and
+        // schema migration/validation has completed.
+        internal void EnableQueryOnlyForExperiment()
         {
-            Releases = ToLong(_db.Scalar("SELECT COUNT(*) FROM release")),
-            Discs = ToLong(_db.Scalar("SELECT COUNT(*) FROM disc")),
-            Tracks = ToLong(_db.Scalar("SELECT COUNT(*) FROM track"))
-        };
-    }
-    public sealed class CatalogCounts
-    {
-        public long Releases { get; set; }
-        public long Discs { get; set; }
-        public long Tracks { get; set; }
+            _db.Execute("PRAGMA query_only=ON");
+            var value = Convert.ToInt32(_db.Scalar("PRAGMA query_only"), CultureInfo.InvariantCulture);
+            if (value != 1) throw new InvalidOperationException("Read-only SQLite guard not enabled");
+        }
+        internal bool VerifyWriteIsRejectedForExperiment()
+        {
+            try
+            {
+                _db.Execute("INSERT INTO release(album_artist,album) VALUES('FORBIDDEN','WRITE')");
+            }
+            catch (InvalidOperationException) { return true; }
+            return false;
+        }
     }
 }
 
@@ -41,100 +60,101 @@ namespace DJLibrary.SyntheticComparison
 {
     public static class NativeSqliteFixture
     {
-        // Only newly created disposable temporary SQLite databases are touched.
-        // No real catalog path, app configuration, foobar profile, bridge or
-        // user-controlled file path can be passed to this entry point.
+        // Hard-coded count bound, no user-supplied database paths or credentials.
+        // This invokes the FULL original production CatalogService constructor,
+        // schema-v4 bootstrap, ValidateAndMigrate and GetNativeTracks.
         public static List<SyntheticTrackRow> LoadReadOnlySqlite(int count)
         {
             if (count < 1 || count > 15000)
                 throw new ArgumentOutOfRangeException(nameof(count));
             string dir = Path.Combine(Path.GetTempPath(),
-                "DJLibrary-WinUi-Sqlite-A-B-" + Guid.NewGuid().ToString("N"));
+                "DJLibrary-WinUi-Full-Catalog-A-B-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(dir);
             string path = Path.Combine(dir, "synthetic-native.sqlite");
             try
             {
-                using (var db = new WinSqliteDb(path))
+                using (var schema = CatalogService.CreateEmptyForTesting(path))
                 {
-                    db.Execute("PRAGMA foreign_keys=ON");
-                    // Exact current catalog-v4 release/disc/track table definitions
-                    // from production CatalogService.InstallEmpty, with only these
-                    // three tables materialized for the read-only SELECT contract.
-                    db.Execute("CREATE TABLE release(id INTEGER PRIMARY KEY,album_artist TEXT NOT NULL DEFAULT '',album TEXT NOT NULL DEFAULT '',release_date TEXT NOT NULL DEFAULT '',genre TEXT NOT NULL DEFAULT '',label TEXT NOT NULL DEFAULT '',catalog TEXT NOT NULL DEFAULT '',country TEXT NOT NULL DEFAULT '',total_discs INTEGER NOT NULL DEFAULT 1 CHECK(total_discs>0))");
-                    db.Execute("CREATE TABLE disc(id INTEGER PRIMARY KEY,release_id INTEGER NOT NULL REFERENCES release(id) ON DELETE CASCADE,legacy_album_id INTEGER,disc_number INTEGER NOT NULL DEFAULT 1 CHECK(disc_number>0),medium TEXT NOT NULL DEFAULT '',toc TEXT NOT NULL DEFAULT '',toc_complete INTEGER NOT NULL DEFAULT 0 CHECK(toc_complete IN(0,1)),cd_text_present INTEGER NOT NULL DEFAULT 0 CHECK(cd_text_present IN(0,1)),duration_seconds REAL NOT NULL DEFAULT 0 CHECK(duration_seconds>=0),legacy_json TEXT NOT NULL DEFAULT '{}',cd_text_status TEXT NOT NULL DEFAULT 'legacy_unknown')");
-                    db.Execute("CREATE TABLE track(id INTEGER PRIMARY KEY,disc_id INTEGER NOT NULL REFERENCES disc(id) ON DELETE CASCADE,position INTEGER NOT NULL CHECK(position>0),artist TEXT NOT NULL DEFAULT '',title TEXT NOT NULL DEFAULT '',version TEXT NOT NULL DEFAULT '',release_date TEXT NOT NULL DEFAULT '',genre TEXT NOT NULL DEFAULT '',legacy_genre TEXT NOT NULL DEFAULT '',bpm REAL NOT NULL DEFAULT 0 CHECK(bpm>=0),duration_seconds REAL NOT NULL DEFAULT 0 CHECK(duration_seconds>=0),legacy_artist_raw TEXT NOT NULL DEFAULT '',legacy_json TEXT NOT NULL DEFAULT '{}',UNIQUE(disc_id,position))");
-                    db.Transaction(() =>
+                    if (schema.QuickCheck() != "ok" ||
+                        schema.GetCounts().Tracks != 0)
+                        throw new InvalidDataException("Full CatalogService did not bootstrap a clean schema-v4");
+                }
+
+                // Bulk synthetic data insertion via unchanged native WinSqlite
+                // API; a single transaction avoids per-row fsync overhead.
+                using (var writer = new WinSqliteDb(path))
+                {
+                    writer.Execute("PRAGMA foreign_keys=ON");
+                    writer.Transaction(() =>
                     {
-                        db.Execute("INSERT INTO release(id,album_artist,album,total_discs) VALUES(1,'Synthetic DJ','Synthetic Readonly SQLite',1)");
-                        int discCount = (count + 11) / 12;
-                        for (int d = 1; d <= discCount; d++)
-                            db.Execute("INSERT INTO disc(id,release_id,disc_number,medium) VALUES(?,1,1,'Digital')", d);
+                        writer.Execute("INSERT INTO release(id,album_artist,album,total_discs) VALUES(1,'Synthetic DJ','Synthetic Readonly SQLite',1)");
+                        int discs = (count + 11) / 12;
+                        for (int d = 1; d <= discs; d++)
+                            writer.Execute("INSERT INTO disc(id,release_id,disc_number,medium) VALUES(?,1,1,'Digital')", d);
                         for (int i = 1; i <= count; i++)
                         {
                             int disc = ((i - 1) / 12) + 1;
                             int ordinal = ((i - 1) % 12) + 1;
-                            db.Execute("INSERT INTO track(id,disc_id,position,artist,title,release_date,genre,duration_seconds) VALUES(?,?,?,?,?,?,?,?)",
+                            writer.Execute("INSERT INTO track(id,disc_id,position,artist,title,release_date,genre,duration_seconds) VALUES(?,?,?,?,?,?,?,?)",
                                 i, disc, ordinal,
                                 "Native Artist " + (i % 131).ToString("D3", CultureInfo.InvariantCulture),
                                 "Native Title " + i.ToString("D6", CultureInfo.InvariantCulture),
-                                "2026-10-19", i % 2 == 0 ? "Trance" : "House", 180 + i % 70);
+                                "2026-10-19", i % 2 == 0 ? "Trance" : "House",
+                                180 + i % 70);
                         }
                     });
-                    if (db.QuickCheck() != "ok")
-                        throw new InvalidDataException("Disposable SQLite fixture failed quick_check");
+                    if (writer.QuickCheck() != "ok")
+                        throw new InvalidDataException("Full CatalogService test database quick_check failed");
                 }
-                // winsqlite3.dll can hold exclusive access while SQLite is
-                // open. Hash the fixture only with ALL SQLite handles closed.
+
+                // Native winsqlite3 can hold exclusive file access. Hash before
+                // and after only when every native handle has closed.
                 string before = Sha256(path);
                 List<SyntheticTrackRow> rows;
-                using (var db = new WinSqliteDb(path))
+                using (var catalog = CatalogService.OpenForTesting(path))
                 {
-                    db.Execute("PRAGMA foreign_keys=ON");
-                    // Fail-closed read-only mode BEFORE real CatalogService SELECT.
-                    db.Execute("PRAGMA query_only=ON");
-                    if (ToInt(db.Scalar("PRAGMA query_only")) != 1)
-                        throw new InvalidOperationException("SQLite query_only guard not enabled");
-                    bool writeRejected = false;
-                    try { db.Execute("INSERT INTO release(album_artist,album) VALUES('FORBIDDEN','WRITE')"); }
-                    catch (InvalidOperationException) { writeRejected = true; }
-                    if (!writeRejected)
-                        throw new InvalidOperationException("SQLite query_only connection allowed a write");
+                    if (catalog.QuickCheck() != "ok" ||
+                        catalog.GetCounts().Tracks != count ||
+                        catalog.ForeignKeyViolationCount() != 0)
+                        throw new InvalidDataException("Full CatalogService migration/schema validation failed");
 
-                    var catalog = new CatalogService(db);
+                    // OpenForTesting may legitimately migrate a database, but
+                    // our fresh v4 test input MUST NOT require any migration.
+                    // The final byte hash rejects any unexpected alteration.
+                    catalog.EnableQueryOnlyForExperiment();
+                    if (!catalog.VerifyWriteIsRejectedForExperiment())
+                        throw new InvalidOperationException("Full CatalogService query_only allowed a write");
+
                     string contract = CatalogService.ValidateNativeProjectionContract(catalog);
                     if (!contract.Contains("/" + count.ToString(CultureInfo.InvariantCulture)))
-                        throw new InvalidOperationException("Native SQL projection unexpectedly changed item count");
-                    var native = catalog.GetNativeTracks(); // ORIGINAL production SQL and row mapping
-                    if (native.Count != count || native[0].Id != 1 || native[^1].Id != count ||
+                        throw new InvalidOperationException("Full CatalogService native projection count failed");
+                    var native = catalog.GetNativeTracks();
+                    if (native.Count != count ||
+                        native[0].Id != 1 || native[^1].Id != count ||
                         native[0].Artist != "Native Artist 001" ||
                         native[^1].Title != "Native Title " + count.ToString("D6", CultureInfo.InvariantCulture))
-                        throw new InvalidOperationException("Native SQLite GetNativeTracks source projection mismatch");
+                        throw new InvalidOperationException("Full CatalogService native SQLite projection mismatch");
                     rows = NativeTrackProjection.Project(native);
-                    if (rows.Count != count || rows[0].Identity != "native-track-000000000001")
-                        throw new InvalidOperationException("Native SQLite rows lost track identity");
-                    var ids = SyntheticSelection.Capture(new[] { rows[0], rows[^1] });
-                    if (SyntheticSelection.Restore(SyntheticCatalog.SortByTitle(rows), ids).Count != 2)
-                        throw new InvalidOperationException("Native SQLite identities not stable under sorting");
+                    var selection = SyntheticSelection.Capture(new[] { rows[0], rows[^1] });
+                    if (SyntheticSelection.Restore(SyntheticCatalog.SortByTitle(rows), selection).Count != 2)
+                        throw new InvalidOperationException("Full CatalogService lost stable catalog IDs");
                 }
-                // A genuine on-disk byte-for-byte read-only check AFTER the
-                // native Windows SQLite driver has closed its file handle.
+
                 if (!string.Equals(before, Sha256(path), StringComparison.Ordinal))
-                    throw new InvalidOperationException("Read-only SQLite test modified the fixture database");
+                    throw new InvalidOperationException("Full CatalogService read-only path changed SQLite bytes");
                 return rows;
             }
             finally
             {
-                // Only disposable files inside this code-generated private subdir.
-                try { Directory.Delete(dir, recursive: true); } catch { }
+                // Never traverse outside this generated disposable directory.
+                try { Directory.Delete(dir, true); } catch { }
             }
         }
-        private static int ToInt(object value) =>
-            Convert.ToInt32(value, CultureInfo.InvariantCulture);
         private static string Sha256(string path)
         {
             using (var hash = SHA256.Create())
-            using (var fs = File.OpenRead(path))
-                return Convert.ToHexString(hash.ComputeHash(fs));
+            using (var file = File.OpenRead(path))
+                return Convert.ToHexString(hash.ComputeHash(file));
         }
     }
 }
