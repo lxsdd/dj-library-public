@@ -66,6 +66,8 @@ public sealed partial class MainWindow
             !long.TryParse(row.Identity.Substring("disc:".Length), out long discId))
             return;
         ShowNavigationRows(_navigation.ForTracks(discId));
+        if (_navigation.ForDiscEvidence(discId) is { } evidence)
+            StatusText.Text = evidence.Description;
     }
 
     private async Task<string> VerifyNavigationSelectorsAsync()
@@ -84,6 +86,20 @@ public sealed partial class MainWindow
         await YieldToUiAsync();
         if (TracksGrid.Items.Count != 2 || _all[0].Identity != "track:101")
             throw new InvalidOperationException("WinUI disc SelectionChanged not wired");
+        if (!StatusText.Text.Contains("TOC: 150 12000 24000") ||
+            !StatusText.Text.Contains("CD-TEXT: drive_present") ||
+            !StatusText.Text.Contains("CDX: yes") ||
+            !StatusText.Text.Contains("No physical CD drive accessed."))
+            throw new InvalidOperationException("WinUI disc metadata detail not populated from original catalog");
+        NavigationDiscSelector.SelectedItem = _navigation.ForDiscs(1)[1];
+        await YieldToUiAsync();
+        if (!StatusText.Text.Contains("TOC: 150 12500 24500") ||
+            !StatusText.Text.Contains("CD-TEXT: drive_absent") ||
+            StatusText.Text.Contains("TOC: 150 12000 24000"))
+            throw new InvalidOperationException("WinUI displayed stale stored CD details after disc switch");
+        NavigationDiscSelector.SelectedItem = _navigation.ForDiscs(1)[0];
+        await YieldToUiAsync();
+
         SearchBox.Text = "Opening";
         Filter_Click(this, new RoutedEventArgs());
         await YieldToUiAsync();
@@ -94,8 +110,19 @@ public sealed partial class MainWindow
         await AwaitActualFrameAsync();
         if (TracksGrid.Items.Count != 3 || TracksGrid.ActualWidth < 600)
             throw new InvalidOperationException("WinUI release navigation restore failed");
+        if (StatusText.Text.Contains("TOC:"))
+            throw new InvalidOperationException("WinUI stale CD details leaked into release view");
+        NavigationReleaseSelector.SelectedItem = _navigation.Releases.Single(r => r.Identity == "release:2");
+        await YieldToUiAsync();
+        NavigationDiscSelector.SelectedItem = _navigation.ForDiscs(2)[0];
+        await YieldToUiAsync();
+        if (!StatusText.Text.Contains("TOC: unavailable") ||
+            !StatusText.Text.Contains("CDX: unknown") ||
+            !StatusText.Text.Contains("CD-TEXT: drive_unavailable"))
+            throw new InvalidOperationException("WinUI unknown CD evidence was incorrectly promoted");
+        NavigationReleases_Click(this, new RoutedEventArgs());
         return "PASS WinUI interactive TEMP CatalogService navigation controls: " +
             "real Release/Disc ComboBox SelectionChanged events routed to real TableView, " +
-            "3/2/2 rows, filter and back-to-releases, no production files";
+            "3/2/2 rows, filter and back-to-releases, stored TOC/CD-TEXT/CDX detail transitions; no production files";
     }
 }

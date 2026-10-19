@@ -64,6 +64,9 @@ jobs:
             if (-not $txt.Contains('PASS WPF interactive TEMP CatalogService navigation controls:')) {
               throw 'WPF Release/Disc selection event UI navigation did not run'
             }
+            if (-not $txt.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files')) {
+              throw 'Original catalog CD metadata detail UI transition gate did not run in WPF'
+            }
             if (-not $txt.Contains('PASS WPF read-only SQLite CatalogService.GetNativeTracks:')) {
               throw 'WPF native WinSqlite GetNativeTracks read-only actual-database gate was not executed'
             }
@@ -123,6 +126,9 @@ jobs:
             if (-not $result.Contains('PASS WinUI interactive TEMP CatalogService navigation controls:')) {
               throw 'WinUI Release/Disc selection event UI navigation did not run'
             }
+            if (-not $result.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files')) {
+              throw 'Original catalog CD metadata detail UI transition gate did not run in WinUI'
+            }
             if (-not $result.Contains('PASS WinUI read-only SQLite CatalogService.GetNativeTracks:')) {
               throw 'WinUI actual WinSqlite read-only SQLite/native projection gate was not executed'
             }
@@ -173,6 +179,7 @@ jobs:
                 -not $text.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:') -or
                 -not $text.Contains('PASS WPF original CatalogService release/disc/track navigation:') -or
                 -not $text.Contains('PASS WPF interactive TEMP CatalogService navigation controls:') -or
+                -not $text.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files') -or
                 -not $text.Contains('PASS WPF read-only SQLite CatalogService.GetNativeTracks:')) {
               throw 'Published WPF failed real-window/SQLite/native-model runtime assertions'
             }
@@ -199,6 +206,7 @@ jobs:
                 -not $text.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:') -or
                 -not $text.Contains('PASS WinUI original CatalogService release/disc/track navigation:') -or
                 -not $text.Contains('PASS WinUI interactive TEMP CatalogService navigation controls:') -or
+                -not $text.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files') -or
                 -not $text.Contains('PASS WinUI read-only SQLite CatalogService.GetNativeTracks:')) {
               throw 'Published WinUI 3 failed real-window/SQLite/native-model runtime assertions'
             }

@@ -10,11 +10,48 @@ using DJLibrary;
 
 namespace DJLibrary.SyntheticComparison;
 
+public sealed class CatalogDiscEvidence
+{
+    // Values originate exclusively in original CatalogService.GetDiscs().
+    // They describe the STORED catalog and never inspect an actual CD drive.
+    public long DiscId { get; }
+    public string Toc { get; }
+    public bool TocComplete { get; }
+    public bool CdTextPresent { get; }
+    public string CdTextStatus { get; }
+    public string CdxCode { get; }
+    public string CdxExplanation { get; }
+
+    public CatalogDiscEvidence(CatalogDisc disc)
+    {
+        DiscId = disc.Id;
+        Toc = disc.Toc;
+        TocComplete = disc.TocComplete;
+        CdTextPresent = disc.CdTextPresent;
+        CdTextStatus = disc.CdTextStatus;
+        CdxCode = disc.CdxCompatibilityCode;
+        CdxExplanation = disc.CdxCompatibilityToolTip;
+    }
+
+    public string Description =>
+        "Stored catalog disc " + DiscId +
+        " | TOC: " + (TocComplete ? Toc : "unavailable") +
+        " | CD-TEXT: " + CdTextStatus +
+        " (recorded present=" + CdTextPresent.ToString().ToLowerInvariant() + ")" +
+        " | CDX: " + CdxCode +
+        " | " + CdxExplanation +
+        " | No physical CD drive accessed.";
+}
+
 public sealed class CatalogNavigationSnapshot
 {
     public List<SyntheticTrackRow> Releases { get; } = new();
     public Dictionary<long, List<SyntheticTrackRow>> Discs { get; } = new();
     public Dictionary<long, List<SyntheticTrackRow>> Tracks { get; } = new();
+    public Dictionary<long, CatalogDiscEvidence> DiscEvidence { get; } = new();
+
+    public CatalogDiscEvidence? ForDiscEvidence(long discId) =>
+        DiscEvidence.TryGetValue(discId, out var info) ? info : null;
 
     public List<SyntheticTrackRow> ForDiscs(long releaseId) =>
         Discs.TryGetValue(releaseId, out var rows) ? rows : new();
@@ -116,6 +153,7 @@ public static class CatalogNavigationFixture
                              catalog.GetDisc(d.Id)?.ReleaseId == r.Id,
                              "GetDiscs/GetDisc foreign release mismatch");
                         snapshot.Discs[r.Id].Add(DiscRow(r, d));
+                        snapshot.DiscEvidence.Add(d.Id, new CatalogDiscEvidence(d));
                         var tracks = catalog.GetTracks(d.Id);
                         Must(tracks.All(t => t.DiscId == d.Id) &&
                              tracks.Select(t => t.Id).Distinct().Count() == tracks.Count,
@@ -132,6 +170,17 @@ public static class CatalogNavigationFixture
                      snapshot.ForTracks(11).Count == 2 &&
                      snapshot.ForTracks(12).Count == 2 &&
                      snapshot.ForTracks(21).Count == 1, "hierarchical counts mismatch");
+                Must(snapshot.ForDiscEvidence(11)?.Toc == "150 12000 24000" &&
+                     snapshot.ForDiscEvidence(11)?.TocComplete == true &&
+                     snapshot.ForDiscEvidence(11)?.CdTextStatus == "drive_present" &&
+                     snapshot.ForDiscEvidence(11)?.CdTextPresent == true &&
+                     snapshot.ForDiscEvidence(11)?.CdxCode == "yes" &&
+                     snapshot.ForDiscEvidence(12)?.CdTextStatus == "drive_absent" &&
+                     snapshot.ForDiscEvidence(12)?.CdxCode == "yes" &&
+                     snapshot.ForDiscEvidence(21)?.CdxCode == "unknown" &&
+                     snapshot.ForDiscEvidence(21)?.TocComplete == false &&
+                     snapshot.ForDiscEvidence(999) == null,
+                     "original catalog TOC, stored CD-TEXT and CDX classification contract failed");
                 Must(snapshot.ForDiscs(-1).Count == 0 &&
                      snapshot.ForTracks(-1).Count == 0 &&
                      catalog.GetReleases().Count == 3 &&

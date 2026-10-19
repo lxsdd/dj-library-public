@@ -86,6 +86,8 @@ internal sealed partial class ComparisonWindow
             !long.TryParse(row.Identity.Substring("disc:".Length), out long discId))
             return;
         ShowNavigationRows(_navigation.ForTracks(discId));
+        if (_navigation.ForDiscEvidence(discId) is { } evidence)
+            _status.Text = evidence.Description;
     }
 
     private string VerifyNavigationSelectors()
@@ -104,6 +106,18 @@ internal sealed partial class ComparisonWindow
         _grid.UpdateLayout();
         if (_grid.Items.Count != 2 || _all[0].Identity != "track:101")
             throw new InvalidOperationException("WPF disc SelectionChanged not wired");
+        if (!_status.Text.Contains("TOC: 150 12000 24000") ||
+            !_status.Text.Contains("CD-TEXT: drive_present") ||
+            !_status.Text.Contains("CDX: yes") ||
+            !_status.Text.Contains("No physical CD drive accessed."))
+            throw new InvalidOperationException("WPF disc metadata detail not populated from original catalog");
+        _navigationDiscs.SelectedItem = _navigation.ForDiscs(1)[1];
+        if (!_status.Text.Contains("TOC: 150 12500 24500") ||
+            !_status.Text.Contains("CD-TEXT: drive_absent") ||
+            _status.Text.Contains("TOC: 150 12000 24000"))
+            throw new InvalidOperationException("WPF displayed stale stored CD details after disc switch");
+        _navigationDiscs.SelectedItem = _navigation.ForDiscs(1)[0];
+
         _search.Text = "Opening";
         Filter(this, new RoutedEventArgs());
         if (_grid.Items.Count != 1) throw new InvalidOperationException("WPF navigation filtering failed");
@@ -111,8 +125,17 @@ internal sealed partial class ComparisonWindow
         NavigationReleases(this, new RoutedEventArgs());
         if (_grid.Items.Count != 3 || _grid.ActualWidth < 600)
             throw new InvalidOperationException("WPF release navigation restore failed");
+        if (_status.Text.Contains("TOC:"))
+            throw new InvalidOperationException("WPF stale CD details leaked into release view");
+        _navigationReleases.SelectedItem = _navigation.Releases.Single(r => r.Identity == "release:2");
+        _navigationDiscs.SelectedItem = _navigation.ForDiscs(2)[0];
+        if (!_status.Text.Contains("TOC: unavailable") ||
+            !_status.Text.Contains("CDX: unknown") ||
+            !_status.Text.Contains("CD-TEXT: drive_unavailable"))
+            throw new InvalidOperationException("WPF unknown CD evidence was incorrectly promoted");
+        NavigationReleases(this, new RoutedEventArgs());
         return "PASS WPF interactive TEMP CatalogService navigation controls: " +
             "real Release/Disc ComboBox SelectionChanged events routed to real DataGrid, " +
-            "3/2/2 rows, filter and back-to-releases, no production files";
+            "3/2/2 rows, filter and back-to-releases, stored TOC/CD-TEXT/CDX detail transitions; no production files";
     }
 }
