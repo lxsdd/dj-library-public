@@ -120,7 +120,7 @@ internal static class PersistenceCompatibilitySnapshot
             "</ColumnSetting></TrackColumns>" +
             "<TrackSorts><SortSetting><Property>ARTIST</Property>" +
             "<Descending>true</Descending></SortSetting></TrackSorts>" +
-            "<BridgeDirectory>X:\SYNTHETIC_ONLY\legacy</BridgeDirectory>" +
+            @"<BridgeDirectory>X:\SYNTHETIC_ONLY\legacy</BridgeDirectory>" +
             "</AppSettings>";
         AppSettings historic;
         using (var reader = new StringReader(historicXml))
