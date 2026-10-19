@@ -13,18 +13,20 @@ public sealed partial class MainWindow
 
     private void ResetNavigationForSyntheticLoad()
     {
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TracksGrid, "DJ Library synthetic track table");
         _navigation = null;
         NavigationReleaseSelector.ItemsSource = null;
         NavigationDiscSelector.ItemsSource = null;
     }
 
-    private void ShowNavigationRows(System.Collections.Generic.List<SyntheticTrackRow> rows)
+    private void ShowNavigationRows(System.Collections.Generic.List<SyntheticTrackRow> rows, string view)
     {
         PreserveSelection();
         SearchBox.Text = "";
         _all = rows;
         TracksGrid.ItemsSource = rows;
         RestoreSelection();
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(TracksGrid, "DJ Library temporary catalog " + view + " table");
         StatusText.Text = "Read-only TEMP CatalogService: " + rows.Count +
             " entries. No existing library, audio, settings or bridge accessed.";
     }
@@ -37,7 +39,7 @@ public sealed partial class MainWindow
         NavigationDiscSelector.ItemsSource = null;
         NavigationReleaseSelector.ItemsSource = _navigation.Releases;
         NavigationReleaseSelector.SelectedIndex = -1;
-        ShowNavigationRows(_navigation.Releases);
+        ShowNavigationRows(_navigation.Releases, "releases");
     }
 
     private void NavigationReleases_Click(object sender, RoutedEventArgs e)
@@ -46,7 +48,7 @@ public sealed partial class MainWindow
         NavigationReleaseSelector.SelectedIndex = -1;
         NavigationDiscSelector.SelectedIndex = -1;
         NavigationDiscSelector.ItemsSource = null;
-        ShowNavigationRows(_navigation.Releases);
+        ShowNavigationRows(_navigation.Releases, "releases");
     }
 
     private void NavigationRelease_Changed(object sender, SelectionChangedEventArgs e)
@@ -59,7 +61,7 @@ public sealed partial class MainWindow
         var discs = _navigation.ForDiscs(releaseId);
         NavigationDiscSelector.ItemsSource = discs;
         NavigationDiscSelector.SelectedIndex = -1;
-        ShowNavigationRows(discs);
+        ShowNavigationRows(discs, "discs");
     }
 
     private void NavigationDisc_Changed(object sender, SelectionChangedEventArgs e)
@@ -69,7 +71,7 @@ public sealed partial class MainWindow
             !row.Identity.StartsWith("disc:", StringComparison.Ordinal) ||
             !long.TryParse(row.Identity.Substring("disc:".Length), out long discId))
             return;
-        ShowNavigationRows(_navigation.ForTracks(discId));
+        ShowNavigationRows(_navigation.ForTracks(discId), "tracks");
         if (_navigation.ForDiscEvidence(discId) is { } evidence)
             StatusText.Text = evidence.Description;
     }
@@ -80,16 +82,22 @@ public sealed partial class MainWindow
             throw new InvalidOperationException("WinUI experimental table must be read-only, allow copy and block paste");
         NavigationLoad_Click(this, new RoutedEventArgs());
         await AwaitActualFrameAsync();
+        if (Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(TracksGrid) != "DJ Library temporary catalog releases table")
+            throw new InvalidOperationException("WinUI release table accessibility label missing");
         if (_navigation == null || NavigationReleaseSelector.Items.Count != 3 ||
             TracksGrid.Items.Count != 3)
             throw new InvalidOperationException("WinUI release selector not bound");
         NavigationReleaseSelector.SelectedItem = _navigation.Releases.Single(r => r.Identity == "release:1");
         await YieldToUiAsync();
+        if (Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(TracksGrid) != "DJ Library temporary catalog discs table")
+            throw new InvalidOperationException("WinUI disc table accessibility label missing");
         if (NavigationDiscSelector.Items.Count != 2 ||
             TracksGrid.Items.Count != 2 || _all[0].Identity != "disc:11")
             throw new InvalidOperationException("WinUI release SelectionChanged not wired");
         NavigationDiscSelector.SelectedItem = _navigation.ForDiscs(1)[0];
         await YieldToUiAsync();
+        if (Microsoft.UI.Xaml.Automation.AutomationProperties.GetName(TracksGrid) != "DJ Library temporary catalog tracks table")
+            throw new InvalidOperationException("WinUI track table accessibility label missing");
         if (TracksGrid.Items.Count != 2 || _all[0].Identity != "track:101")
             throw new InvalidOperationException("WinUI disc SelectionChanged not wired");
         if (!StatusText.Text.Contains("TOC: 150 12000 24000") ||

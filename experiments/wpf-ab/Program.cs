@@ -63,6 +63,7 @@ internal sealed partial class ComparisonWindow : Window
     public ComparisonWindow()
     {
         Title = "DJ Library — WPF .NET 10 synthetic A/B workspace";
+        System.Windows.Automation.AutomationProperties.SetName(_grid, "DJ Library synthetic track table");
         Width = 1000;
         Height = 840;
         MinWidth = 700;

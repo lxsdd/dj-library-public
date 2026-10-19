@@ -35,18 +35,20 @@ internal sealed partial class ComparisonWindow
 
     private void ResetNavigationForSyntheticLoad()
     {
+        System.Windows.Automation.AutomationProperties.SetName(_grid, "DJ Library synthetic track table");
         _navigation = null;
         _navigationReleases.ItemsSource = null;
         _navigationDiscs.ItemsSource = null;
     }
 
-    private void ShowNavigationRows(System.Collections.Generic.List<SyntheticTrackRow> rows)
+    private void ShowNavigationRows(System.Collections.Generic.List<SyntheticTrackRow> rows, string view)
     {
         PreserveSelection();
         _search.Text = "";
         _all = rows;
         _grid.ItemsSource = rows;
         RestoreSelection();
+        System.Windows.Automation.AutomationProperties.SetName(_grid, "DJ Library temporary catalog " + view + " table");
         _status.Text = "Read-only TEMP CatalogService: " + rows.Count +
             " entries. No existing library, audio, settings or bridge accessed.";
     }
@@ -59,7 +61,7 @@ internal sealed partial class ComparisonWindow
         _navigationDiscs.ItemsSource = null;
         _navigationReleases.ItemsSource = _navigation.Releases;
         _navigationReleases.SelectedIndex = -1;
-        ShowNavigationRows(_navigation.Releases);
+        ShowNavigationRows(_navigation.Releases, "releases");
     }
 
     private void NavigationReleases(object sender, RoutedEventArgs e)
@@ -68,7 +70,7 @@ internal sealed partial class ComparisonWindow
         _navigationReleases.SelectedIndex = -1;
         _navigationDiscs.SelectedIndex = -1;
         _navigationDiscs.ItemsSource = null;
-        ShowNavigationRows(_navigation.Releases);
+        ShowNavigationRows(_navigation.Releases, "releases");
     }
 
     private void NavigationReleaseChanged(object sender, SelectionChangedEventArgs e)
@@ -80,7 +82,7 @@ internal sealed partial class ComparisonWindow
         var discs = _navigation.ForDiscs(releaseId);
         _navigationDiscs.ItemsSource = discs;
         _navigationDiscs.SelectedIndex = -1;
-        ShowNavigationRows(discs);
+        ShowNavigationRows(discs, "discs");
     }
 
     private void NavigationDiscChanged(object sender, SelectionChangedEventArgs e)
@@ -89,7 +91,7 @@ internal sealed partial class ComparisonWindow
             !row.Identity.StartsWith("disc:", StringComparison.Ordinal) ||
             !long.TryParse(row.Identity.Substring("disc:".Length), out long discId))
             return;
-        ShowNavigationRows(_navigation.ForTracks(discId));
+        ShowNavigationRows(_navigation.ForTracks(discId), "tracks");
         if (_navigation.ForDiscEvidence(discId) is { } evidence)
             _status.Text = evidence.Description;
     }
@@ -100,16 +102,22 @@ internal sealed partial class ComparisonWindow
             throw new InvalidOperationException("WPF experimental DataGrid must remain read-only");
         NavigationLoad(this, new RoutedEventArgs());
         _grid.UpdateLayout();
+        if (System.Windows.Automation.AutomationProperties.GetName(_grid) != "DJ Library temporary catalog releases table")
+            throw new InvalidOperationException("WPF release table accessibility label missing");
         if (_navigation == null || _navigationReleases.Items.Count != 3 ||
             _grid.Items.Count != 3)
             throw new InvalidOperationException("WPF release selector is not bound");
         _navigationReleases.SelectedItem = _navigation.Releases.Single(r => r.Identity == "release:1");
         _grid.UpdateLayout();
+        if (System.Windows.Automation.AutomationProperties.GetName(_grid) != "DJ Library temporary catalog discs table")
+            throw new InvalidOperationException("WPF disc table accessibility label missing");
         if (_navigationDiscs.Items.Count != 2 || _grid.Items.Count != 2 ||
             _all[0].Identity != "disc:11")
             throw new InvalidOperationException("WPF release SelectionChanged not wired");
         _navigationDiscs.SelectedItem = _navigation.ForDiscs(1)[0];
         _grid.UpdateLayout();
+        if (System.Windows.Automation.AutomationProperties.GetName(_grid) != "DJ Library temporary catalog tracks table")
+            throw new InvalidOperationException("WPF track table accessibility label missing");
         if (_grid.Items.Count != 2 || _all[0].Identity != "track:101")
             throw new InvalidOperationException("WPF disc SelectionChanged not wired");
         if (!_status.Text.Contains("TOC: 150 12000 24000") ||
