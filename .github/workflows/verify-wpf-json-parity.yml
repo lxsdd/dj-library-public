@@ -33,7 +33,8 @@ jobs:
           $ref = Join-Path $pfx 'Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Web.Extensions.dll'
           if (-not (Test-Path $fx) -or -not (Test-Path $ref)) { throw 'Legacy compiler or System.Web.Extensions missing' }
           Copy-Item -LiteralPath 'experiments/wpf-json-parity/JsonParityHarness.cs' -Destination 'JsonParityLegacy.cs'
-          & $fx /nologo /target:exe /out:JsonParityLegacy.exe "/reference:$ref" JsonParityLegacy.cs
+          # Legacy csc.exe already supplies System.Web.Extensions by default.
+          & $fx /nologo /target:exe /out:JsonParityLegacy.exe JsonParityLegacy.cs
           if ($LASTEXITCODE -ne 0) { throw 'Original Framework serializer consumer did not compile' }
       - name: Compile .NET 10 limited compatibility adapter
         shell: pwsh
