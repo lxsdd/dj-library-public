@@ -58,6 +58,7 @@ jobs:
             if (-not $txt.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:')) {
               throw 'WPF native DJ Library production-model runtime gate was not executed'
             }
+            if (-not $txt.Contains('PASS WPF original BridgeSnapshotReader v3 TEMP:')) { throw 'WPF production Bridge v3 reader/UI gate missing' }
             if (-not $txt.Contains('PASS WPF original CatalogService release/disc/track navigation:')) {
               throw 'WPF real CatalogService release/disc/track navigation gate did not execute'
             }
@@ -120,6 +121,7 @@ jobs:
             if (-not $result.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:')) {
               throw 'WinUI native DJ Library production-model runtime gate was not executed'
             }
+            if (-not $result.Contains('PASS WinUI original BridgeSnapshotReader v3 TEMP:')) { throw 'WinUI production Bridge v3 reader/UI gate missing' }
             if (-not $result.Contains('PASS WinUI original CatalogService release/disc/track navigation:')) {
               throw 'WinUI real CatalogService release/disc/track navigation gate did not execute'
             }
@@ -177,6 +179,7 @@ jobs:
             if (-not $text.StartsWith("PASS`n") -or
                 -not $text.Contains('PASS 100,000 synthetic WPF') -or
                 -not $text.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:') -or
+                -not $text.Contains('PASS WPF original BridgeSnapshotReader v3 TEMP:') -or
                 -not $text.Contains('PASS WPF original CatalogService release/disc/track navigation:') -or
                 -not $text.Contains('PASS WPF interactive TEMP CatalogService navigation controls:') -or
                 -not $text.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files') -or
@@ -204,6 +207,7 @@ jobs:
                 -not $text.Contains('PASS WinUI accessibility:') -or
                 -not $text.Contains('PASS WinUI scrolling:') -or
                 -not $text.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:') -or
+                -not $text.Contains('PASS WinUI original BridgeSnapshotReader v3 TEMP:') -or
                 -not $text.Contains('PASS WinUI original CatalogService release/disc/track navigation:') -or
                 -not $text.Contains('PASS WinUI interactive TEMP CatalogService navigation controls:') -or
                 -not $text.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files') -or

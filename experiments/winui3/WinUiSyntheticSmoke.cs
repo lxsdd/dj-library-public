@@ -133,6 +133,7 @@ public sealed partial class MainWindow
         evidence.Add(await VerifyNativeCatalogBindingAsync());
         evidence.Add(await VerifyHierarchicalNavigationAsync());
         evidence.Add(await VerifyNavigationSelectorsAsync());
+        evidence.Add(await VerifyBridgeSnapshotBindingAsync());
         evidence.Add(await VerifyDisposableSqliteBindingAsync());
         return string.Join("\n", evidence) +
             "\nNOT TESTED: user drag gestures, native horizontal touchpad, real settings path, " +

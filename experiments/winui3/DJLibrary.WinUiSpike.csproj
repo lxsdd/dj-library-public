@@ -26,6 +26,8 @@
     <Compile Include="../../src/CatalogService.cs" Link="Production/CatalogService.cs" />
     <Compile Include="../../src/CatalogService.Interchange.cs" Link="Production/CatalogService.Interchange.cs" />
     <Compile Include="../../src/CatalogModels.cs" Link="Production/CatalogModels.cs" />
+    <Compile Include="../../src/BridgeSnapshot.cs" Link="Production/BridgeSnapshot.cs" />
+    <Compile Include="../shared/BridgeV3Fixture.cs" Link="Shared/BridgeV3Fixture.cs" />
     <Compile Include="../../src/CdxCompatibility.cs" Link="Production/CdxCompatibility.cs" />
     <!-- Isolated EXPERIMENT-only legacy JSON shim; never replace production serializer silently. -->
     <Compile Include="../wpf-net10/LegacyJsonCompat.cs" Link="Experimental/LegacyJsonCompat.cs" />

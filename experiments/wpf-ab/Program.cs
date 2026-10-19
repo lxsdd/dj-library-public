@@ -245,6 +245,9 @@ internal sealed partial class ComparisonWindow : Window
         string navigationUiReport = VerifyNavigationSelectors();
         report.Add(navigationUiReport);
         Console.WriteLine(navigationUiReport);
+        string bridgeReport = VerifyBridgeSnapshotBinding();
+        report.Add(bridgeReport);
+        Console.WriteLine(bridgeReport);
         string sqliteReport = VerifyDisposableSqliteBinding();
         report.Add(sqliteReport);
         Console.WriteLine(sqliteReport);
