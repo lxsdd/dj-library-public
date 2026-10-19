@@ -105,7 +105,12 @@ public sealed partial class MainWindow
                     $"Live column resize failed to expand horizontal scroll range: " +
                     $"before={beforeResize:F0}, after={afterResize:F0}, " +
                     $"measured column={TracksGrid.Columns[0].ActualWidth:F0}, " +
-                    $"specified={TracksGrid.Columns[0].Width.Value:F0}");
+                    $"specified={TracksGrid.Columns[0].Width.Value:F0}, " +
+                    $"extent={horizontal.ExtentWidth:F0}, viewport={horizontal.ViewportWidth:F0}, " +
+                    $"column actual total={TracksGrid.Columns.Sum(c => c.ActualWidth):F0}; " +
+                    string.Join("; ", scrolls.Select((v, i) =>
+                        $"scroll[{i}]: extent={v.ExtentWidth:F0} viewport={v.ViewportWidth:F0} " +
+                        $"scrollable={v.ScrollableWidth:F0} hOffset={v.HorizontalOffset:F0}")));
 
             horizontal.ChangeView(120, null, null, true);
             await AwaitActualFrameAsync();

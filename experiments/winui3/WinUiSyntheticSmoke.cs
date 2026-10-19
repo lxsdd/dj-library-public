@@ -134,6 +134,7 @@ public sealed partial class MainWindow
         evidence.Add(VerifySyntheticColumnStateRoundTrip());
         evidence.Add(VerifyTableAccessibilityContract());
         evidence.Add(await ProbeKeyboardFocusEscapeAsync());
+        evidence.Add(await ProbeReverseKeyboardBoundaryAsync());
         evidence.Add(await ProbeExplicitFocusTransferAsync());
         evidence.Add(await VerifyProgrammaticScrollContractAsync());
         evidence.Add(await VerifyNativeCatalogBindingAsync());

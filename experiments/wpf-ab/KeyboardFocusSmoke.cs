@@ -82,7 +82,7 @@ internal sealed partial class ComparisonWindow
             }
             if (delivered == 0)
                 return marker + "INCONCLUSIVE no Tab events received by WPF DataGrid";
-            return marker + "BLOCKED WPF DataGrid retained focus after 24 Tab presses; " +
+            return marker + "IN_TABLE_FORWARD_24 WPF DataGrid retained focus after 24 Tab presses; " +
                 "Tab routed events received=" + delivered;
         }
         finally
@@ -108,6 +108,55 @@ internal sealed partial class ComparisonWindow
         return marker + (requested && ReferenceEquals(Keyboard.FocusedElement, _focusProbeTarget)
             ? "PASS target button retained keyboard focus after WPF DataGrid"
             : "BLOCKED focused control reverted or target focus was refused");
+    }
+
+    // Reverse traversal from the visual start tests whether keyboard users can
+    // reach earlier toolbar controls; this is stronger than 24 forward Tabs in 100k rows.
+    private string ProbeReverseKeyboardBoundary()
+    {
+        const string marker = "REVERSE_TAB_OBSERVATION WPF baseline: ";
+        if (_all.Count != 100_000 || _grid.Items.Count != 100_000)
+            return marker + "INCONCLUSIVE wrong fixture";
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        SetForegroundWindow(hwnd);
+        PumpKeyboardFor(TimeSpan.FromMilliseconds(80));
+        if (GetForegroundWindow() != hwnd)
+            return marker + "INCONCLUSIVE foreground desktop unavailable";
+        _grid.ScrollIntoView(_all[0]);
+        _grid.UpdateLayout();
+        Keyboard.Focus(_grid);
+        PumpKeyboardFor(TimeSpan.FromMilliseconds(80));
+        if (!WithinGrid(Keyboard.FocusedElement, _grid))
+            return marker + "INCONCLUSIVE initial table keyboard focus unavailable";
+
+        int delivered = 0;
+        KeyEventHandler observer = (sender, args) => {
+            if (args.Key == Key.Tab && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) delivered++;
+        };
+        _grid.AddHandler(Keyboard.KeyDownEvent, observer, true);
+        try
+        {
+            for (int press = 1; press <= 8; press++)
+            {
+                keybd_event(0x10, 0, 0, UIntPtr.Zero); // Shift down
+                try
+                {
+                    keybd_event(0x09, 0, 0, UIntPtr.Zero);
+                    keybd_event(0x09, 0, 0x0002, UIntPtr.Zero);
+                }
+                finally { keybd_event(0x10, 0, 0x0002, UIntPtr.Zero); }
+                PumpKeyboardFor(TimeSpan.FromMilliseconds(100));
+                if (GetForegroundWindow() != hwnd)
+                    return marker + "INCONCLUSIVE foreground changed";
+                if (!WithinGrid(Keyboard.FocusedElement, _grid))
+                    return marker + (delivered > 0 ? "PASS" : "INCONCLUSIVE") +
+                        " escaped backward after " + press + " Shift+Tab event(s), delivered=" + delivered;
+            }
+            return marker + (delivered > 0 ? "IN_TABLE_REVERSE_8" : "INCONCLUSIVE") +
+                " after 8 Shift+Tab presses, delivered=" + delivered +
+                "; verify initial focused cell and boundary on physical keyboard";
+        }
+        finally { _grid.RemoveHandler(Keyboard.KeyDownEvent, observer); }
     }
 
 }

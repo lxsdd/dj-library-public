@@ -82,7 +82,7 @@ public sealed partial class MainWindow
         }
         if (delivered == 0)
             return marker + "INCONCLUSIVE no routed Tab key events reached TableView";
-        return marker + "BLOCKED Tab remained inside table after " + pressed +
+        return marker + "IN_TABLE_FORWARD_24 Tab remained inside table after " + pressed +
             " actual foreground key press(es); Tab routed events received=" + delivered +
             "; do not approve WinUI production cutover";
         }
@@ -112,6 +112,54 @@ public sealed partial class MainWindow
             ? "PASS outside button retained keyboard focus after WinUI TableView"
             : "BLOCKED outside focus request was ignored or reverted to " +
                 (focused?.GetType().Name ?? "<none>"));
+    }
+
+    private async Task<string> ProbeReverseKeyboardBoundaryAsync()
+    {
+        const string marker = "REVERSE_TAB_OBSERVATION WinUI v1.5.1: ";
+        if (_all.Count != 100_000 || TracksGrid.Items.Count != 100_000)
+            return marker + "INCONCLUSIVE wrong fixture";
+        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        SetForegroundWindow(hwnd);
+        await YieldToUiAsync();
+        if (GetForegroundWindow() != hwnd)
+            return marker + "INCONCLUSIVE foreground desktop unavailable";
+        TracksGrid.ScrollIntoView(_all[0]);
+        await AwaitActualFrameAsync();
+        TracksGrid.Focus(FocusState.Keyboard);
+        await YieldToUiAsync();
+        if (!HasTableAncestor(FocusManager.GetFocusedElement(TracksGrid.XamlRoot), TracksGrid))
+            return marker + "INCONCLUSIVE initial table keyboard focus unavailable";
+
+        int delivered = 0;
+        KeyEventHandler observer = (sender, args) => {
+            if (args.Key == Windows.System.VirtualKey.Tab) delivered++;
+        };
+        TracksGrid.AddHandler(UIElement.KeyDownEvent, observer, true);
+        try
+        {
+            for (int press = 1; press <= 8; press++)
+            {
+                keybd_event(0x10, 0, 0, UIntPtr.Zero); // Shift down
+                try
+                {
+                    keybd_event(0x09, 0, 0, UIntPtr.Zero);
+                    keybd_event(0x09, 0, 0x0002, UIntPtr.Zero);
+                }
+                finally { keybd_event(0x10, 0, 0x0002, UIntPtr.Zero); }
+                await Task.Delay(100);
+                await YieldToUiAsync();
+                if (GetForegroundWindow() != hwnd)
+                    return marker + "INCONCLUSIVE foreground changed";
+                if (!HasTableAncestor(FocusManager.GetFocusedElement(TracksGrid.XamlRoot), TracksGrid))
+                    return marker + (delivered > 0 ? "PASS" : "INCONCLUSIVE") +
+                        " escaped backward after " + press + " Shift+Tab event(s), delivered=" + delivered;
+            }
+            return marker + (delivered > 0 ? "IN_TABLE_REVERSE_8" : "INCONCLUSIVE") +
+                " after 8 Shift+Tab presses, delivered=" + delivered +
+                "; verify initial focused cell and boundary on physical keyboard";
+        }
+        finally { TracksGrid.RemoveHandler(UIElement.KeyDownEvent, observer); }
     }
 
 }

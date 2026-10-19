@@ -250,6 +250,9 @@ internal sealed partial class ComparisonWindow : Window
         string keyboardReport = ProbeKeyboardFocusEscape();
         report.Add(keyboardReport);
         Console.WriteLine(keyboardReport);
+        string reverseTabReport = ProbeReverseKeyboardBoundary();
+        report.Add(reverseTabReport);
+        Console.WriteLine(reverseTabReport);
         string focusReport = ProbeExplicitFocusTransfer();
         report.Add(focusReport);
         Console.WriteLine(focusReport);

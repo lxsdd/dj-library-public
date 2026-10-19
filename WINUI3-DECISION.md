@@ -104,3 +104,19 @@ with 6×250px. A later isolated change sets both to 6×250px and
 checks these dimensions in the real GUI smoke, preserving horizontal
 virtualization assertions. Previous render/memory samples must not
 be treated as matched-layout performance evidence.
+
+## Pending reverse-keyboard / scroll extent instrumentation (2026-10-19)
+
+The earlier 24-key forward Tab test should never label WPF or WinUI
+as `BLOCKED` from a 100,000-row table alone: cell navigation is valid.
+The experiment now reports `IN_TABLE_FORWARD_24` and separately
+observes up to eight backward Shift+Tab keystrokes after focusing a
+top-scrolled grid, with routed event counts for both frameworks.
+Observations are not physical keyboard/screenreader approval.
+
+The intermittent WinUI column-resize failure on `3f2e4cfc`
+(first run FAILED, unchanged SHA rerun PASSED) remains a risk.
+The assertion threshold is **unchanged**. Diagnostic exceptions
+now record viewport, scroll extent, realized column widths and all
+inner scroll viewers, so a future failure can distinguish stale
+extent from lost realization without hiding a regression.
