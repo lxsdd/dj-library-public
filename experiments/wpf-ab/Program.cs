@@ -78,6 +78,7 @@ internal sealed partial class ComparisonWindow : Window
             });
         var root = new Grid { Margin = new Thickness(16) };
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var bar = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
@@ -89,10 +90,13 @@ internal sealed partial class ComparisonWindow : Window
         AddButton(bar, "Sort by title", Sort);
         AddButton(bar, "Show all", Clear);
         Grid.SetRow(bar, 0);
-        Grid.SetRow(_grid, 1);
+        var navigationBar = BuildNavigationToolbar();
+        Grid.SetRow(navigationBar, 1);
+        Grid.SetRow(_grid, 2);
         _status.Margin = new Thickness(0, 8, 0, 0);
-        Grid.SetRow(_status, 2);
+        Grid.SetRow(_status, 3);
         root.Children.Add(bar);
+        root.Children.Add(navigationBar);
         root.Children.Add(_grid);
         root.Children.Add(_status);
         Content = root;
@@ -237,6 +241,9 @@ internal sealed partial class ComparisonWindow : Window
         string navigationReport = VerifyHierarchicalNavigation();
         report.Add(navigationReport);
         Console.WriteLine(navigationReport);
+        string navigationUiReport = VerifyNavigationSelectors();
+        report.Add(navigationUiReport);
+        Console.WriteLine(navigationUiReport);
         string sqliteReport = VerifyDisposableSqliteBinding();
         report.Add(sqliteReport);
         Console.WriteLine(sqliteReport);
@@ -274,6 +281,7 @@ internal sealed partial class ComparisonWindow : Window
 
     private void Load(object sender, RoutedEventArgs e)
     {
+        ResetNavigationForSyntheticLoad();
         var timer = Stopwatch.StartNew();
         _selectionIds.Clear();
         _all = SyntheticCatalog.Generate(SyntheticCatalog.SupportedSizes[_size.SelectedIndex]);

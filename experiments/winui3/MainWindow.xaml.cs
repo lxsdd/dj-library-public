@@ -40,6 +40,7 @@ public sealed partial class MainWindow : Window
 
     private void Load_Click(object sender, RoutedEventArgs e)
     {
+        ResetNavigationForSyntheticLoad();
         var sw = Stopwatch.StartNew();
         _selectionIds.Clear();
         _all = SyntheticCatalog.Generate(RowCount(SizeSelector.SelectedIndex));
