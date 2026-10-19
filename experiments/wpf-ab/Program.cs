@@ -231,6 +231,10 @@ internal sealed partial class ComparisonWindow : Window
         report.Add(automationReport);
         Console.WriteLine(automationReport);
 
+        string nativeReport = VerifyNativeCatalogBinding();
+        report.Add(nativeReport);
+        Console.WriteLine(nativeReport);
+
         var path = Environment.GetEnvironmentVariable("DJLIB_WPF_AB_SMOKE_REPORT");
         if (!string.IsNullOrWhiteSpace(path))
             System.IO.File.WriteAllText(path, "PASS\n" + string.Join("\n", report) +
