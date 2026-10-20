@@ -58,8 +58,16 @@ jobs:
           # executable they do not reliably populate $LASTEXITCODE.
           & 'experiments/wpf-portable/VerifyPortable.ps1' -OriginalFolder $folder
           Write-Host 'PASS complete relocated WPF/native executable gate'
+      - name: Launch real WPF main HWND with fresh empty disposable Windows runner profile
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $relocated = Join-Path $env:RUNNER_TEMP 'DJ Library WPF .NET 10 relocated'
+          & 'experiments/wpf-portable/VerifyVisibleGui.ps1' -PortableFolder $relocated
+          Write-Host 'PASS real production WPF main HWND and disposable empty schema-v4 catalog startup'
       - name: Explicit qualification boundary
         shell: pwsh
         run: |
-          Write-Host 'No full interactive GUI startup, actual CD drive, owner dataset or settings access.'
-          Write-Host 'All writes isolated to disposable RUNNER_TEMP; no artifacts, releases, merges or paid CI.'
+          Write-Host 'Actual WPF main window tested only with fresh disposable GitHub runner profile, deleted on completion.'
+          Write-Host 'No owner data, CD drive, music, installed profile, network metadata endpoints or private CI.'
+          Write-Host 'No build artifacts uploaded, releases, merges or paid runners.'

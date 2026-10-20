@@ -27,16 +27,28 @@ roundtrip, invalid-foreign-catalog rejection and rollback. It deletes
 its generated TEMP catalog. The report is written next to the relocated
 executable, never the caller's working directory.
 
-**Strict safety boundary:** normal GUI startup is prohibited in CI,
-because that could discover/initialize a runner profile catalog.
-The test never opens actual user data, musical files, rekordbox, a
-foobar profile, optical hardware, credentials or public network
-metadata endpoints; it does not upload build artifacts, publish
-packages, change installed products, merge or charge private
-GitHub Actions minutes.
+**Actual visible GUI startup on a disposable hosted runner:** After
+portable-mode qualification, a separate process launches the genuine
+unchanged DJ Library MainWindow with a **fresh EMPTY catalog** in the
+ephemeral GitHub runner profile. Before launch it requires the DJ Library
+application-data directory to be absent and verifies it belongs to
+the hosted runner's USERPROFILE; any preexisting directory immediately
+fails closed. It then verifies an actual visible top-level WPF HWND
+with the exact Native v0.4.0 title and a newly initialized SQLite
+catalog, force-stops the test process without invoking production
+settings save hooks, and deletes ONLY the directory which it proved
+was initially absent. No such startup is performed on a user's PC.
 
-**Still open:** actual Windows foreground WPF UI startup, real external
-CD/TOC/CD-TEXT drive and native runtime on hardware, mixed DPI,
-touchpad/multi-monitor, non-synthetic profile/settings migrations,
-historic exotic JSON wire cases, actual metadata source access and
-end-user acceptance. A passing CI is not a production GO.
+**Strict safety boundary:** Neither branch test opens owner data, music
+files, rekordbox, a real foobar profile, optical hardware, credentials,
+private Actions runners or live external metadata endpoints. No
+artifacts are uploaded, no releases or merges, no local installation.
+The synthetic SQLite/JSON test continues to use runner TEMP exclusively;
+the real GUI startup is limited to the newly created throwaway hosted
+Windows runner profile, deleted immediately after the test.
+
+**Still open:** hands-on foreground UI interactions, external CD/TOC/
+CD-TEXT hardware, actual production native source behavior, mixed DPI,
+touchpad and multi-monitor, backup/copy of non-synthetic user profiles,
+historic exotic JSON wire cases, real metadata source credentials and
+end-user device acceptance. A passing CI is not a production GO.
