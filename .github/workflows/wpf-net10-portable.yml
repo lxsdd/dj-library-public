@@ -1,0 +1,62 @@
+name: Experimental complete WPF .NET 10 portable deployment
+on:
+  pull_request:
+    paths:
+      - 'experiments/wpf-portable/**'
+      - '.github/workflows/wpf-net10-portable.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wpf-net10-portable-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable-relocation:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Publish all unchanged product sources as self-contained WPF win-x64
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $folder = Join-Path $env:RUNNER_TEMP 'djlib-net10-first-stage'
+          dotnet publish experiments/wpf-portable/DJLibrary.PortableProbe.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -p:UseAppHost=true -o $folder --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Full-source WPF .NET10 publish failed' }
+      - uses: actions/checkout@v4
+        with:
+          repository: lxsdd/dj-metadata-normalizer
+          ref: 365432ad8d6d0b80cc138c21e0d8fd8edca9e499
+          path: dj-metadata-normalizer
+          persist-credentials: false
+      - name: Build the pinned native metadata normalizer x64 DLL and copy rules
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S dj-metadata-normalizer -B djmeta-build -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Native x64 metadata configure failed' }
+          cmake --build djmeta-build --config Release --target djmeta_native
+          if ($LASTEXITCODE -ne 0) { throw 'Native x64 metadata build failed' }
+          $folder = Join-Path $env:RUNNER_TEMP 'djlib-net10-first-stage'
+          Copy-Item -LiteralPath 'djmeta-build/Release/djmeta_native.dll' -Destination (Join-Path $folder 'djmeta_native.dll') -ErrorAction Stop
+          New-Item -ItemType Directory -Path (Join-Path $folder 'rules') -Force | Out-Null
+          Copy-Item -LiteralPath 'dj-metadata-normalizer/rules/default-rules.json' -Destination (Join-Path $folder 'rules/default-rules.json') -ErrorAction Stop
+      - name: Relocate bundle and execute actual synthetic catalog/JSON/metadata ABI checks
+        shell: pwsh
+        run: |
+          $folder = Join-Path $env:RUNNER_TEMP 'djlib-net10-first-stage'
+          & 'experiments/wpf-portable/VerifyPortable.ps1' -OriginalFolder $folder
+          if ($LASTEXITCODE -ne 0) { throw 'WPF portable relocation and native ABI gate failed' }
+      - name: Explicit qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'No full interactive GUI startup, actual CD drive, owner dataset or settings access.'
+          Write-Host 'All writes isolated to disposable RUNNER_TEMP; no artifacts, releases, merges or paid CI.'
