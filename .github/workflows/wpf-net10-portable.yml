@@ -64,7 +64,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           dotnet build experiments/wpf-portable/GuiInteractionProbe.csproj -c Release --nologo
           if ($LASTEXITCODE -ne 0) { throw 'External UIA WPF probe did not compile' }
-      - name: Launch real WPF main HWND with fresh empty disposable Windows runner profile
+      - name: Exercise real WPF tabs, keyboard, window sizing and settings save/reopen in disposable Windows profile
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'

@@ -77,7 +77,8 @@ internal static class DJLibraryRealUiProbe
         try
         {
             int pid = 0;
-            Require(args.Length == 1 && Int32.TryParse(args[0], out pid) && pid > 0,
+            bool reopened = args.Length == 2 && args[1] == "--restored";
+            Require((args.Length == 1 || reopened) && Int32.TryParse(args[0], out pid) && pid > 0,
                 "requires disposable hosted GUI process PID");
             using var process = Process.GetProcessById(pid);
             IntPtr hwnd = process.MainWindowHandle;
@@ -89,6 +90,17 @@ internal static class DJLibraryRealUiProbe
             Require(Tabs(hwnd).Length == 2, "two distinct real tab elements expected");
             Require(tracks.Current.BoundingRectangle.Width > 20 &&
                 cds.Current.BoundingRectangle.Width > 20, "real tab headers invisible");
+            if (reopened)
+            {
+                // This is the second launch: it must restore the CDs tab
+                // persisted by the previous instance's real Closing hook.
+                Thread.Sleep(250);
+                Require(IsSelected(Tab(hwnd, "CDs")),
+                    "real SettingsManager XML did not restore selected CDs tab");
+                ((WindowPattern)Root(hwnd).GetCurrentPattern(WindowPattern.Pattern)).Close();
+                Console.WriteLine("PASS restored real WPF CDs tab on second startup and closed normally");
+                return 0;
+            }
             Require(IsSelected(tracks), "fresh empty DB must select Tracks by default");
             Select(cds);
             Require(!IsSelected(tracks), "Tracks remained selected after CDs UIA selection");
@@ -143,6 +155,9 @@ internal static class DJLibraryRealUiProbe
                 Math.Abs(back.Width - original.Width) <= 14,
                 "WPF window size not restored");
             Console.WriteLine("PASS actual WPF window native resize and restore without lost tabs");
+            Select(Tab(hwnd, "CDs"));
+            ((WindowPattern)Root(hwnd).GetCurrentPattern(WindowPattern.Pattern)).Close();
+            Console.WriteLine("PASS requested normal WPF close with CDs tab selected for persistence");
             return 0;
         }
         catch (Exception ex)

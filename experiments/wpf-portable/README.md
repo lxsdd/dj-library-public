@@ -71,3 +71,20 @@ empty catalog is removed after forcibly stopping the WPF process.
 These operations do **not** prove a real physical keyboard or
 Precision Touchpad, track navigation with populated data, audio
 playback, mixed DPI, CD hardware or the installed end-user profile.
+
+## Real save/restore lifecycle qualification
+
+The same ephemeral hosted-runner UI Automation probe also selects CDs
+and closes the unchanged original MainWindow using the real WPF
+WindowPattern, instead of force-killing it. The test checks that
+`MainClosing` persisted a **new synthetic** `settings.xml` containing
+`SelectedTab=1` and nonempty actual Tracks/CDs column layouts.
+It then launches a second original MainWindow against only this
+throwaway runner profile and requires the CDs tab to be restored and
+the second window to close normally. The profile directory is proven
+absent before the first launch and removed after both processes stop.
+
+This is a **real integration check** of save, load, close and reopen
+under .NET 10, beyond XML serializer-only tests. It does not inspect,
+modify or back up the user's installed settings or catalog, and
+doesn't establish cross-DPI geometry restoration on physical hardware.

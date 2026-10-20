@@ -104,6 +104,43 @@ try {
     throw "Real WPF GUI interaction gate failed, exit $LASTEXITCODE"
   }
   Write-Host "PASS real WPF two-tab UIA, Ctrl shortcuts, search and native resize"
+
+  # The real MainWindow Closing callback must persist tab and column state.
+  # On the ephemeral runner only: inspect XML and re-open this same dummy profile.
+  if (-not $process.WaitForExit(12000)) {
+    throw 'First WPF instance did not exit after normal UI Automation close'
+  }
+  if ($process.ExitCode -ne 0) { throw "Normal product GUI close exited $($process.ExitCode)" }
+  $settingsPath = Join-Path $profile 'settings.xml'
+  if (-not (Test-Path -LiteralPath $settingsPath)) {
+    throw 'Real WPF close did not persist settings.xml under disposable CI profile'
+  }
+  [xml]$settings = Get-Content -LiteralPath $settingsPath -Raw -ErrorAction Stop
+  if ($settings.AppSettings.SelectedTab -ne '1') {
+    throw 'Real SettingsManager failed to save selected CDs tab'
+  }
+  if (-not $settings.AppSettings.TrackColumns.ColumnSetting -or
+      -not $settings.AppSettings.CdColumns.ColumnSetting) {
+    throw 'Real MainWindow close did not save actual Tracks/CDs column layouts'
+  }
+  Write-Host 'PASS real .NET10 MainClosing saved synthetic selected tab and both grid layouts'
+
+  $process.Dispose()
+  $process = $null
+  $process = Start-Process -FilePath $exe -WorkingDirectory $PortableFolder -PassThru
+  $reopenedWindow = $null
+  for ($i=0; $i -lt 80; $i++) {
+    if ($process.HasExited) { throw "Real settings-reopen GUI exited $($process.ExitCode)" }
+    $reopenedWindow = [DjLibraryVisibleWindowProbe]::FindMainWindow($process.Id)
+    if ($reopenedWindow) { break }
+    Start-Sleep -Milliseconds 250
+  }
+  if (-not $reopenedWindow) { throw 'Second WPF MainWindow not visible' }
+  & dotnet $probe $process.Id --restored
+  if ($LASTEXITCODE -ne 0) { throw 'Real WPF second-start settings restoration failed' }
+  if (-not $process.WaitForExit(12000)) { throw 'Restored WPF GUI did not close normally' }
+  if ($process.ExitCode -ne 0) { throw "Restored WPF GUI exited $($process.ExitCode)" }
+  Write-Host 'PASS original WPF settings.xml saved on close, then restored CDs selection on second normal startup'
 }
 finally {
   if ($process -ne $null) {
