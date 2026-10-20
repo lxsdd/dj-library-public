@@ -114,17 +114,54 @@ namespace DJLibrary
                     if (!rejectedJson) throw new InvalidDataException("Foreign JSON format was accepted.");
                     Verify(catalog.GetCounts(), 1, 2, 2, "invalid JSON preserves live catalog");
                 }
+                VerifyCorruptPrimarySettingsBackupPreserved(dir);
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
                     throw new InvalidDataException("Public-smoke unknown CDX classification failed.");
 
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
-                       "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, no user fixtures";
+                       "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
+                       "corrupt XML backup preservation, no user fixtures";
             }
             finally
             {
                 try { Directory.Delete(dir, true); } catch { }
             }
+        }
+
+        private static void VerifyCorruptPrimarySettingsBackupPreserved(string temporaryDirectory)
+        {
+            // A previous settings.xml.bak is our LAST healthy recovery copy.
+            // Calling File.Replace with a corrupt settings.xml as the old
+            // destination would otherwise overwrite that good backup.
+            string settings = Path.Combine(temporaryDirectory, "synthetic-settings.xml");
+            string backup = settings + ".bak";
+            SettingsManager.SaveForTesting(new AppSettings { SelectedTab = 1 }, settings);
+            SettingsManager.SaveForTesting(new AppSettings { SelectedTab = 0 }, settings);
+            if (!File.Exists(backup))
+                throw new InvalidDataException("Good settings backup not created during normal rotation.");
+
+            AppSettings originalBackup = SettingsManager.LoadForTesting(backup, backup);
+            if (originalBackup.SelectedTab != 1)
+                throw new InvalidDataException("Healthy primary rotation did not preserve earlier settings.");
+            string goodBackupBytes = Convert.ToBase64String(File.ReadAllBytes(backup));
+
+            // Deliberate malformed XML resides exclusively under this
+            // GUID-named disposable TEMP directory.
+            File.WriteAllText(settings, "<AppSettings><broken>");
+            SettingsManager.SaveForTesting(new AppSettings { SelectedTab = 0 }, settings);
+            if (goodBackupBytes != Convert.ToBase64String(File.ReadAllBytes(backup)))
+                throw new InvalidDataException("Saving after invalid primary destroyed the last good backup.");
+
+            AppSettings restored = SettingsManager.LoadForTesting(settings, backup);
+            if (restored.SelectedTab != 0 ||
+                SettingsManager.LoadForTesting(backup, backup).SelectedTab != 1)
+                throw new InvalidDataException("Healthy settings/backup were not independently recoverable.");
+
+            // The normal positive case must continue to rotate backups.
+            SettingsManager.SaveForTesting(new AppSettings { SelectedTab = 1 }, settings);
+            if (SettingsManager.LoadForTesting(backup, backup).SelectedTab != 0)
+                throw new InvalidDataException("Healthy settings no longer rotate the backup.");
         }
 
         private static void Verify(CatalogCounts counts, long releases, long discs, long tracks, string stage)
