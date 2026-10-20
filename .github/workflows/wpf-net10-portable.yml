@@ -58,13 +58,19 @@ jobs:
           # executable they do not reliably populate $LASTEXITCODE.
           & 'experiments/wpf-portable/VerifyPortable.ps1' -OriginalFolder $folder
           Write-Host 'PASS complete relocated WPF/native executable gate'
+      - name: Compile separate external UI Automation probe (unchanged original WPF program)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet build experiments/wpf-portable/GuiInteractionProbe.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'External UIA WPF probe did not compile' }
       - name: Launch real WPF main HWND with fresh empty disposable Windows runner profile
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $relocated = Join-Path $env:RUNNER_TEMP 'DJ Library WPF .NET 10 relocated'
           & 'experiments/wpf-portable/VerifyVisibleGui.ps1' -PortableFolder $relocated
-          Write-Host 'PASS real production WPF main HWND and disposable empty schema-v4 catalog startup'
+          Write-Host 'PASS real product WPF visible HWND, disposable SQLite and external UIA keyboard/resize interaction'
       - name: Explicit qualification boundary
         shell: pwsh
         run: |

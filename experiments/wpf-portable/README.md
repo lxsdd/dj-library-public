@@ -52,3 +52,22 @@ CD-TEXT hardware, actual production native source behavior, mixed DPI,
 touchpad and multi-monitor, backup/copy of non-synthetic user profiles,
 historic exotic JSON wire cases, real metadata source credentials and
 end-user device acceptance. A passing CI is not a production GO.
+
+## External real-window UI Automation integration (2026-10-20)
+
+To move beyond a visible-window-only smoke, the separate net10 WPF
+`GuiInteractionProbe` inspects the **real running unmodified product**
+through UI Automation on a fresh disposable public Windows runner.
+It verifies exactly two real `Tracks`/`CDs` TabItems,
+switches both via UIA SelectionItemPattern, then injects real
+foreground Ctrl+2 and Ctrl+1 keys and verifies the selected tab.
+Ctrl+F must focus the actual editable search field, whose synthetic
+text must be cleared by Escape; native window resize/restore must
+preserve visible tabs. There are no imported real music/CD records.
+
+The hosted runner's user-profile `DJ Library` directory must be
+absent before startup; otherwise the test fails closed. The temporary
+empty catalog is removed after forcibly stopping the WPF process.
+These operations do **not** prove a real physical keyboard or
+Precision Touchpad, track navigation with populated data, audio
+playback, mixed DPI, CD hardware or the installed end-user profile.

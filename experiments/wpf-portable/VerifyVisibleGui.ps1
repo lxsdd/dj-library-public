@@ -93,6 +93,17 @@ try {
   }
   Write-Host "PASS actual full-product WPF GUI window visible on isolated public runner: $observed"
   Write-Host "PASS fresh empty CI runner SQLite initialized only under $profile"
+  # External process uses genuine UI Automation + foreground hardware-style
+  # keys. It does not write to the runner's disposable catalog or profile.
+  $probe = 'experiments/wpf-portable/bin/Release/net10.0-windows/GuiInteractionProbe.dll'
+  if (-not (Test-Path -LiteralPath $probe)) {
+    throw "Missing compiled WPF UI interaction probe: $probe"
+  }
+  & dotnet $probe $process.Id
+  if ($LASTEXITCODE -ne 0) {
+    throw "Real WPF GUI interaction gate failed, exit $LASTEXITCODE"
+  }
+  Write-Host "PASS real WPF two-tab UIA, Ctrl shortcuts, search and native resize"
 }
 finally {
   if ($process -ne $null) {
