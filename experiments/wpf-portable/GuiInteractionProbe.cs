@@ -76,7 +76,8 @@ internal static class DJLibraryRealUiProbe
     {
         try
         {
-            Require(args.Length == 1 && Int32.TryParse(args[0], out int pid) && pid > 0,
+            int pid = 0;
+            Require(args.Length == 1 && Int32.TryParse(args[0], out pid) && pid > 0,
                 "requires disposable hosted GUI process PID");
             using var process = Process.GetProcessById(pid);
             IntPtr hwnd = process.MainWindowHandle;
