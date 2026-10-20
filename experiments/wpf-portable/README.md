@@ -88,3 +88,23 @@ This is a **real integration check** of save, load, close and reopen
 under .NET 10, beyond XML serializer-only tests. It does not inspect,
 modify or back up the user's installed settings or catalog, and
 doesn't establish cross-DPI geometry restoration on physical hardware.
+
+## Real populated Track/CD table and search test (disposable CI)
+
+After both clean-profile save/reopen sessions have closed, an isolated
+bootstrapping executable links the **unchanged real DJ Library
+`CatalogService`** and writes **only** to the same disposable hosted
+Windows runner's initial empty SQLite catalog. It refuses a nonempty
+catalog, different APPDATA path or non-GitHub environment. The fixture
+uses one artificial release, two physical discs with synthetic TOCs and
+two tracks (`Photon Fixture Only`, `Nebula Fixture Only`).
+
+The third normal application launch checks the **actual visible WPF
+DataGrid UI Automation GridPattern** contains two CDs and two Tracks.
+It then tests the real search/filter pipeline: two tracks -> one for
+`Photon Fixture Only` -> zero for nonexistent text -> two again
+after Escape. It returns to the CDs view and confirms two discs
+remain. This verifies UI handling with *populated* synthetic records
+but intentionally does not exercise physical optical hardware,
+real user artist data, Discogs, foobar, or image/metadata downloads.
+The same test-created profile is removed after a regular GUI close.

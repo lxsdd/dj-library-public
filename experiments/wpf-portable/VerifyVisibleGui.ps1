@@ -141,6 +141,31 @@ try {
   if (-not $process.WaitForExit(12000)) { throw 'Restored WPF GUI did not close normally' }
   if ($process.ExitCode -ne 0) { throw "Restored WPF GUI exited $($process.ExitCode)" }
   Write-Host 'PASS original WPF settings.xml saved on close, then restored CDs selection on second normal startup'
+
+  # Populate only the freshly created, disposable runner catalog. The sidecar
+  # refuses any nonempty DB, non-APPDATA path or non-GitHub environment.
+  $bootstrap = 'experiments/wpf-portable/bin/Release/net10.0-windows/DJLibrary.SyntheticCatalogUiBootstrap.dll'
+  if (-not (Test-Path -LiteralPath $bootstrap)) {
+    throw "Missing isolated synthetic catalog source bootstrap: $bootstrap"
+  }
+  & dotnet $bootstrap $freshDb
+  if ($LASTEXITCODE -ne 0) { throw 'Disposable-only synthetic populated GUI fixture creation failed' }
+  $process.Dispose()
+  $process = $null
+  $process = Start-Process -FilePath $exe -WorkingDirectory $PortableFolder -PassThru
+  $fixtureWindow = $null
+  for ($i=0; $i -lt 80; $i++) {
+    if ($process.HasExited) { throw "Synthetic populated GUI exited early: $($process.ExitCode)" }
+    $fixtureWindow = [DjLibraryVisibleWindowProbe]::FindMainWindow($process.Id)
+    if ($fixtureWindow) { break }
+    Start-Sleep -Milliseconds 250
+  }
+  if (-not $fixtureWindow) { throw 'Populated real WPF GUI window not visible' }
+  & dotnet $probe $process.Id --fixture
+  if ($LASTEXITCODE -ne 0) { throw 'Real WPF populated catalog UIA/filter gates failed' }
+  if (-not $process.WaitForExit(12000)) { throw 'Populated GUI did not close normally' }
+  if ($process.ExitCode -ne 0) { throw "Populated GUI exit $($process.ExitCode)" }
+  Write-Host 'PASS real WPF populated synthetic 2-track/2-CD tab and search filters, no user data'
 }
 finally {
   if ($process -ne $null) {

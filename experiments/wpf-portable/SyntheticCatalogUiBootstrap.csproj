@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Isolated testing executable: all production sources linked unchanged. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <StartupObject>DJLibrary.SyntheticCatalogUiBootstrap</StartupObject>
+    <AssemblyName>DJLibrary.SyntheticCatalogUiBootstrap</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/*.cs" Link="src/%(Filename)%(Extension)" />
+    <Compile Include="LegacyJsonCompat.cs" />
+    <Compile Include="SyntheticCatalogUiBootstrap.cs" />
+  </ItemGroup>
+</Project>
