@@ -143,3 +143,24 @@ The test is guarded with `GITHUB_ACTIONS=true`,
 and exits rather than touching any pre-existing DJ Library profile.
 The test-created runner-only directory and GUID backup are cleaned
 after processes stop.
+
+## Integrated settings backup corruption protection (2026-10-20)
+
+Following independent public Windows Framework qualification of
+[DJ Library Draft PR #10](https://github.com/lxsdd/dj-library-public/pull/10),
+this experiment includes only its two explicit production-source
+changes in addition to the WPF .NET10 test harness:
+`src/Settings.cs` and `src/PublicDataSelfTest.cs`.
+
+The real `SettingsManager.Save()` must no longer overwrite an intact
+`settings.xml.bak` with a malformed previous primary during normal
+File.Replace. An internal TEMP-restricted test helper proves normal
+backup rotation for valid XML and byte-for-byte preservation of the
+last good backup after invalid primary XML.
+
+Both full original Framework x64 `BuildOnly.cmd` and portable
+WPF .NET10 use the **same two fixed C# files** from this experimental
+branch. This project's real GUI/cold backup/byte-identical rollback
+checks must pass under both, not just the isolated PR #10 smoke.
+No production `main` modification, release or real profile access
+is authorized by this test.
