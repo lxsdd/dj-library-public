@@ -32,6 +32,10 @@ jobs:
           $forbidden = @(git ls-files | Where-Object { $_ -match '(^|/)(catalog-seed|tracks\.tsv|cds\.tsv|matches\.tsv|digital-items|private-research|user-imports|local-fixtures)' })
           if ($forbidden.Count -gt 0) { throw ('Personal fixture paths are forbidden in the public tree: ' + ($forbidden -join ', ')) }
 
+      - name: Enforce license gate for public binary artifacts
+        shell: pwsh
+        run: python scripts/verify-public-artifact-hold.py
+
       - name: Checkout public metadata normalizer at pinned revision
         uses: actions/checkout@v4
         with:
