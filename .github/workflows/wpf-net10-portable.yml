@@ -53,8 +53,11 @@ jobs:
         shell: pwsh
         run: |
           $folder = Join-Path $env:RUNNER_TEMP 'djlib-net10-first-stage'
+          $ErrorActionPreference = 'Stop'
+          # Direct PowerShell scripts throw on every failing gate; unlike a native
+          # executable they do not reliably populate $LASTEXITCODE.
           & 'experiments/wpf-portable/VerifyPortable.ps1' -OriginalFolder $folder
-          if ($LASTEXITCODE -ne 0) { throw 'WPF portable relocation and native ABI gate failed' }
+          Write-Host 'PASS complete relocated WPF/native executable gate'
       - name: Explicit qualification boundary
         shell: pwsh
         run: |
