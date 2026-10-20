@@ -73,6 +73,16 @@ jobs:
           $relocated = Join-Path $env:RUNNER_TEMP 'DJ Library WPF .NET 10 relocated'
           & 'experiments/wpf-portable/VerifyVisibleGui.ps1' -PortableFolder $relocated
           Write-Host 'PASS real product WPF visible HWND, disposable SQLite and external UIA keyboard/resize interaction'
+      - name: Build original unmodified .NET Framework WPF product
+        shell: cmd
+        run: call BuildOnly.cmd
+      - name: Test actual Framework to .NET10 GUI/profile compatibility and exact rollback
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $modern = Join-Path $env:RUNNER_TEMP 'DJ Library WPF .NET 10 relocated'
+          & 'experiments/wpf-portable/VerifyCrossRuntimeRollback.ps1' -ModernFolder $modern
+          Write-Host 'PASS original Framework GUI -> original .NET10 GUI -> SHA256 rollback -> Framework GUI'
       - name: Explicit qualification boundary
         shell: pwsh
         run: |

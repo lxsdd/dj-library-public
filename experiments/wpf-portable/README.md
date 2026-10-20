@@ -108,3 +108,38 @@ remain. This verifies UI handling with *populated* synthetic records
 but intentionally does not exercise physical optical hardware,
 real user artist data, Discogs, foobar, or image/metadata downloads.
 The same test-created profile is removed after a regular GUI close.
+
+## Actual Framework 4.8 ↔ .NET 10 GUI/profile cutover and rollback
+
+This further gate compiles the **unchanged original DJ Library WPF
+application with BuildOnly.cmd** under .NET Framework 4.8 *on the same
+disposable public Windows runner*. It stages the binary separately
+alongside the same pinned native metadata DLL and rules used by the
+qualified .NET 10 portable bundle.
+
+With an initially **absent** `DJ Library` APPDATA folder (otherwise
+fail closed), a real Framework GUI creates an empty catalog and
+saves its actual `settings.xml` through normal MainWindow close.
+A separate, source-linked .NET 10 sidecar creates exactly one made-up
+release, two CDs and two Tracks in this new throwaway catalog. The
+original Framework **real GUI** must show and filter those records
+using external UI Automation. When all processes are stopped the
+runner creates a cold copy of this *synthetic-only* profile and
+compares SHA-256 hashes of the catalog and settings against the copy.
+
+The original .NET 10 portable GUI then opens **the same profile**,
+shows the same 2 CDs and 2 Tracks and successfully searches and
+closes normally. The profile is subsequently restored in full
+from its cold snapshot. The catalog and settings must match
+their original pre-upgrade SHA-256 values **byte-for-byte** before
+the original Framework WPF GUI is reopened for the final UIA
+search/selection test. A broken adapter, schema migration or
+incompatible settings file must fail the CI gate.
+
+**No production cutover, user file, profile, catalog, installed app,
+CD drive, metadata credential, private runner or artifact upload.**
+The test is guarded with `GITHUB_ACTIONS=true`,
+`RUNNER_ENVIRONMENT=github-hosted` and a profile-path validation,
+and exits rather than touching any pre-existing DJ Library profile.
+The test-created runner-only directory and GUID backup are cleaned
+after processes stop.
