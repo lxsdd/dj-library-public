@@ -172,28 +172,54 @@ namespace DJLibrary
         {
             try
             {
-                Directory.CreateDirectory(SettingsDirectory);
-                XmlSerializer xs = new XmlSerializer(typeof(AppSettings));
-                string temp = SettingsPath + ".tmp";
-                string backup = SettingsPath + ".bak";
-                using (FileStream fs = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    xs.Serialize(fs, settings);
-                    fs.Flush(true);
-                }
-                if (File.Exists(SettingsPath))
-                {
-                    File.Replace(temp, SettingsPath, backup, true);
-                }
-                else
-                {
-                    File.Move(temp, SettingsPath);
-                }
+                SaveAtPath(settings, SettingsPath);
             }
             catch (Exception ex)
             {
                 WriteDiagnostic("Settings could not be saved: " + ex.Message);
             }
+        }
+
+        // Synthetic TEMP-only entry point. Never opens an installed profile.
+        internal static void SaveForTesting(AppSettings settings, string path)
+        {
+            string tempRoot = Path.GetFullPath(Path.GetTempPath()).TrimEnd(
+                Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string target = Path.GetFullPath(path);
+            if (!target.StartsWith(tempRoot, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Settings test writes must be under TEMP.");
+            SaveAtPath(settings, target);
+        }
+
+        private static void SaveAtPath(AppSettings settings, string path)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path)));
+            XmlSerializer xs = new XmlSerializer(typeof(AppSettings));
+            string temp = path + ".tmp";
+            string backup = path + ".bak";
+            using (FileStream fs = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                xs.Serialize(fs, settings);
+                fs.Flush(true);
+            }
+            if (!File.Exists(path))
+            {
+                File.Move(temp, path);
+                return;
+            }
+
+            // File.Replace writes the OLD destination to its backup argument.
+            // A corrupt primary must NEVER replace a previously usable backup.
+            // In that case install valid settings atomically without touching
+            // settings.xml.bak. Healthy primary files still rotate normally.
+            bool priorValid = false;
+            try
+            {
+                using (FileStream fs = File.OpenRead(path))
+                    priorValid = xs.Deserialize(fs) is AppSettings;
+            }
+            catch { priorValid = false; }
+            File.Replace(temp, path, priorValid ? backup : null, true);
         }
 
         internal static DataGridLength RestoreColumnWidth(ColumnSetting setting)
