@@ -83,6 +83,43 @@ jobs:
           $modern = Join-Path $env:RUNNER_TEMP 'DJ Library WPF .NET 10 relocated'
           & 'experiments/wpf-portable/VerifyCrossRuntimeRollback.ps1' -ModernFolder $modern
           Write-Host 'PASS original Framework GUI -> original .NET10 GUI -> SHA256 rollback -> Framework GUI'
+      - name: Verify real foobar Bridge v1/v2/v3 reader parity on both .NET runtimes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fx = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path -LiteralPath $fx)) { throw 'Legacy Framework compiler unavailable' }
+          Copy-Item -LiteralPath 'src/BridgeSnapshot.cs' -Destination 'BridgeSnapshotForParity.cs'
+          Copy-Item -LiteralPath 'experiments/wpf-portable/BridgeRuntimeParity.cs' -Destination 'BridgeRuntimeParityLegacy.cs'
+          & $fx /nologo /target:exe /out:BridgeRuntimeParityLegacy.exe BridgeSnapshotForParity.cs BridgeRuntimeParityLegacy.cs
+          if ($LASTEXITCODE -ne 0) { throw 'Original Bridge reader compilation failed under Framework' }
+          dotnet build experiments/wpf-portable/BridgeRuntimeParity.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Original Bridge reader compilation failed under .NET 10' }
+          $legacy = Join-Path $env:RUNNER_TEMP 'djlib-bridge-framework.txt'
+          $modern = Join-Path $env:RUNNER_TEMP 'djlib-bridge-net10.txt'
+          $env:DJLIB_BRIDGE_PARITY_REPORT = $legacy
+          & '.\BridgeRuntimeParityLegacy.exe'
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $legacy)) {
+            throw 'Legacy Framework Bridge v1/v2/v3 reader regression failed'
+          }
+          $env:DJLIB_BRIDGE_PARITY_REPORT = $modern
+          dotnet run --project experiments/wpf-portable/BridgeRuntimeParity.csproj -c Release --no-build
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $modern)) {
+            throw 'Modern .NET 10 Bridge v1/v2/v3 reader regression failed'
+          }
+          $a = Get-Content -LiteralPath $legacy -Raw -Encoding utf8
+          $b = Get-Content -LiteralPath $modern -Raw -Encoding utf8
+          if ($a -cne $b) {
+            Write-Host 'Legacy Bridge report follows:'
+            Write-Host $a
+            Write-Host 'Modern Bridge report follows:'
+            Write-Host $b
+            throw 'Original Bridge reader behavior changed between Framework and .NET 10'
+          }
+          if (-not $a.Contains('PASS original BridgeSnapshotReader cross-runtime v1/v2/v3 semantic parity')) {
+            throw 'Bridge parity evidence marker missing'
+          }
+          Write-Host 'PASS exact original Bridge consumer v1/v2/v3 on both runtimes, incl. safety rejections'
       - name: Explicit qualification boundary
         shell: pwsh
         run: |

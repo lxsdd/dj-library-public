@@ -164,3 +164,15 @@ branch. This project's real GUI/cold backup/byte-identical rollback
 checks must pass under both, not just the isolated PR #10 smoke.
 No production `main` modification, release or real profile access
 is authorized by this test.
+
+## Original foobar Bridge v1/v2/v3 read-only consumer runtime parity
+
+An exact-source experiment compiles the unchanged production BridgeSnapshot.cs with a minimal
+test-only DigitalItem type under original .NET Framework 4.8 and modern .NET 10. It creates
+synthetic bridge-state.tsv and gzip digital-items.tsv.gz only under GUID-named RUNNER_TEMP.
+The two runtimes must generate identical UTF-8 semantic reports for all three schema versions,
+Unicode artist/path, floating-point BPM/duration, v3 multivalue metadata_vectors_json, and
+rejections for stale generations, duplicate path+subsong identities, declared count mismatch,
+incomplete snapshots, invalid headers, and unsupported newer schema. It also executes the
+original built-in v3 snapshot check. The comparison is an exact producer-format consumer
+regression test, NOT evidence of access to an installed foobar2000 profile or a user's music.
