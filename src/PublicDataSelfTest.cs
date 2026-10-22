@@ -118,6 +118,9 @@ namespace DJLibrary
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
                     throw new InvalidDataException("Public-smoke unknown CDX classification failed.");
 
+                // Independent original C# reader of the canonical C++ Bridge V3/CUE wire fixture.
+                BridgeV3GoldenSelfTest.Run(dir);
+
                 // Real WPF object used through the unchanged DJLibrary facade,
                 // wired to the canonical shared-source attached property.
                 // Synthetic-only: no native precision-touchpad gesture is asserted.

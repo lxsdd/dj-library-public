@@ -1,0 +1,8 @@
+{
+  "source_owner": "lxsdd/foo_dj_library_bridge",
+  "source_commit": "8751488881d34b74841076a05080e8c153476f3b",
+  "source_path": "tests/contracts/bridge-v3-cue-identity.tsv",
+  "git_blob_sha1": "f3b75d4608bacba23b2fd21b3350a7966e668a2e",
+  "consumer": "DJ Library original .NET Framework BridgeSnapshotReader, embedded source-only fixture",
+  "scope": "synthetic read-only identity test; no local catalog/music/foobar writes; no distribution permission"
+}
