@@ -1,0 +1,8 @@
+{
+  "source_repo": "lxsdd/dev-infrastructure-public",
+  "source_commit": "bb611c0a55ae23a4e85b8e38c03424b76bc2747f",
+  "source_path": "shared/wpf/HorizontalScrollSupport.cs",
+  "source_git_blob_sha1": "23046d3df6b6490ba31576ec5b46859704cf6a17",
+  "integration": "compiled verbatim source with legacy DJLibrary namespace compatibility facade",
+  "scope": "no .NET runtime migration, no app/database writes, production WPF call sites retain same public API"
+}
