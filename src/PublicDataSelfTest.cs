@@ -118,7 +118,17 @@ namespace DJLibrary
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
                     throw new InvalidDataException("Public-smoke unknown CDX classification failed.");
 
-                return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
+                // Real WPF object used through the unchanged DJLibrary facade,
+                // wired to the canonical shared-source attached property.
+                // Synthetic-only: no native precision-touchpad gesture is asserted.
+                var scrollProbe = new System.Windows.Controls.DataGrid();
+                if (HorizontalScrollSupport.IsEnabled(scrollProbe))
+                    throw new InvalidDataException("Horizontal scroll default should be disabled.");
+                HorizontalScrollSupport.Enable(scrollProbe);
+                HorizontalScrollSupport.Enable(scrollProbe); // repeated registration is idempotent
+                if (!HorizontalScrollSupport.IsEnabled(scrollProbe))
+                    throw new InvalidDataException("Shared WPF horizontal scroll facade is not wired.");
+                return "PASS_PUBLIC_CONTRACT: shared WPF touchpad facade hookup, clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
                        "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, no user fixtures";
             }
             finally
