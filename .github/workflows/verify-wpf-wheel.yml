@@ -1,0 +1,79 @@
+name: Verify shared WPF native horizontal wheel
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/wpf-wheel/**'
+      - '.github/workflows/verify-wpf-wheel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-wpf-wheel-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  windows-native-wheel:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - name: Checkout DJ Library public production source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout exact public rekordbox MyTagSync source
+        uses: actions/checkout@v4
+        with:
+          repository: lxsdd/rekordbox-mytag-sync
+          ref: 2172c4ef5d5ca0752eddc4a3301f93816e724751
+          path: upstream/mytag
+          persist-credentials: false
+      - name: Legacy .NET Framework 4.8 compile of BOTH actual sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fx = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $fx)) { throw 'Missing Windows Framework 4.x compiler' }
+          $refs = @(
+            "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8",
+            "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\WPF"
+          )
+          $r = $refs | Where-Object { Test-Path (Join-Path $_ 'PresentationFramework.dll') } | Select-Object -First 1
+          if (-not $r) { throw 'No Windows .NET Framework 4.8 WPF reference assemblies' }
+          $references = @('PresentationFramework', 'PresentationCore', 'WindowsBase', 'System.Xaml')
+          $args = @('/nologo', '/target:library', '/out:wpf-wheel-legacy-compile.dll')
+          foreach ($name in $references) {
+            $file = Join-Path $r "$name.dll"
+            if (-not (Test-Path $file)) { throw "Missing $name in $r" }
+            $args += "/reference:$file"
+          }
+          # The legacy csc.exe compiler de-duplicates source files by leaf filename;
+          # copy identical-named real sources verbatim to distinct names for this compile only.
+          Copy-Item -LiteralPath 'src/HorizontalScrollSupport.cs' -Destination 'wpf-wheel-dj-library.cs'
+          Copy-Item -LiteralPath 'upstream/mytag/src/RekordboxMyTagSync/HorizontalScrollSupport.cs' -Destination 'wpf-wheel-mytag.cs'
+          $args += 'wpf-wheel-dj-library.cs'
+          $args += 'wpf-wheel-mytag.cs'
+          & $fx @args
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy WPF dual-source compile failed' }
+          if (-not (Test-Path 'wpf-wheel-legacy-compile.dll')) { throw 'Legacy WPF source assembly not found' }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Build WPF .NET 10 live-native-message smoke harness
+        shell: pwsh
+        run: |
+          dotnet build experiments/wpf-wheel/HorizontalWheelSmoke.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw '.NET 10 source compile failed' }
+      - name: Execute real WPF windows and WM_MOUSEHWHEEL messages
+        shell: pwsh
+        run: |
+          $project = 'experiments/wpf-wheel/HorizontalWheelSmoke.csproj'
+          $p = Start-Process dotnet -ArgumentList @('run','--project',$project,'-c','Release','--no-build') -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Live WPF native wheel contract failed ($($p.ExitCode))" }
+      - name: Qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'PASS means both original sources compile as .NET Framework + .NET 10 and native WPF wheel messages route in actual DataGrid windows.'
+          Write-Host 'DOES NOT prove physical precision touchpad, native MyTag/DJLibrary host hookup, user data, UI accessibility, DPI or release fitness.'
