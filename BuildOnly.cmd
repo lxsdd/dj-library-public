@@ -110,6 +110,7 @@ echo.
   "src\UnifiedEditors.cs" ^
   "src\CdMetadataChoiceDialog.cs" ^
   "src\CdCapturePreviewDialog.cs" ^
+  /resource:"tests\fixtures\bridge-v3-cue-identity.tsv",DJLibrary.BridgeV3CueGolden ^
   "src\PublicDataSelfTest.cs" ^
   "src\CatalogWindow.cs" ^
   "src\CatalogWindow.Workspace.cs" ^
