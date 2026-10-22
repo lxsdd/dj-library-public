@@ -69,7 +69,10 @@ jobs:
           if (-not $report.Contains('PASS_PUBLIC_CONTRACT')) { throw "Synthetic self test incomplete: $report" }
           Write-Host $report
 
+      # Do not publish Windows product binaries from this source-only Draft.
+      # Parallel source-only safety proposal PR #12 remains independent.
       - name: Package app without user data
+        if: false
         shell: pwsh
         run: |
           $expected = @('DJLibrary.exe', 'djmeta_native.dll', 'rules/default-rules.json')
@@ -83,6 +86,7 @@ jobs:
           Compress-Archive -Path public-dist/* -DestinationPath DJLibrary-public-portable.zip
 
       - name: Upload clean portable build
+        if: false
         uses: actions/upload-artifact@v4
         with:
           name: DJLibrary-public-portable

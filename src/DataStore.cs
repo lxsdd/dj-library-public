@@ -317,7 +317,12 @@ namespace DJLibrary
                         bool durationClose = durationKnown && durationDiff <= 3.0;
                         bool durationConflict = durationKnown && durationDiff > 3.0;
 
-                        if (identityExact && !durationConflict)
+                        // Virtual CUE/subsong segments may have the same
+                        // title as a separate mix or release. Never make them
+                        // strong without a *known, close* duration match.
+                        // Physical (subsong 0) matching keeps its established
+                        // behaviour and the existing ambiguity/genre gates.
+                        if (QualifiesStrongDigitalMatch(identityExact, durationConflict, durationClose, d.Subsong))
                         {
                             strong.Add(d); levels[d.ItemId] = "strong";
                             methods[d.ItemId] = structured ? "live_exact_artist_title_version_duration" : "live_exact_display_title_duration";
@@ -368,7 +373,7 @@ namespace DJLibrary
                             int n; genres.TryGetValue(d.Genre.Trim(), out n); genres[d.Genre.Trim()] = n + 1;
                         }
                     }
-                    if (strong.Count > 0 && genres.Count == 1)
+                    if (genres.Count == 1 && MayProjectGenreFromStrongMatches(strong))
                     {
                         foreach (KeyValuePair<string,int> g in genres)
                         {
@@ -410,6 +415,24 @@ namespace DJLibrary
                 c.SearchText=LowerJoin(c.AlbumArtist,c.Album,c.Date,c.Genre,c.LegacyGenre,c.DigitalGenres,c.Label,c.Catalog,c.Country,c.Medium);
             }
             return String.Format(CultureInfo.InvariantCulture,"Live: {0} Items -> {1} Track- und {2} CD-Genreprojektionen",items.Count,ProjectedTrackGenreCount,ProjectedCdGenreCount);
+        }
+
+        // A virtual row represents a segment, not an independent physical
+        // file. Missing source or CD durations do not prove same audio.
+        internal static bool QualifiesStrongDigitalMatch(
+            bool identityExact, bool durationConflict, bool durationClose, int subsong)
+        {
+            return identityExact && !durationConflict && (subsong == 0 || durationClose);
+        }
+
+        // A sole strongly verified virtual segment may legitimately supply a
+        // CD-track genre. Competing virtual candidates must not vote as if
+        // they were independent music files. Preserve previous all-physical
+        // consensus behaviour.
+        internal static bool MayProjectGenreFromStrongMatches(List<DigitalItem> strong)
+        {
+            return strong != null && strong.Count > 0 &&
+                   (strong.Count == 1 || strong.TrueForAll(d => d.Subsong == 0));
         }
 
         private static void AddDigitalIndex(Dictionary<string, List<DigitalItem>> index, string key, DigitalItem item)

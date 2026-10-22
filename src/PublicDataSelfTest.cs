@@ -114,6 +114,29 @@ namespace DJLibrary
                     if (!rejectedJson) throw new InvalidDataException("Foreign JSON format was accepted.");
                     Verify(catalog.GetCounts(), 1, 2, 2, "invalid JSON preserves live catalog");
                 }
+                // Virtual foobar CUE/subsong rows must remain searchable, yet
+                // must never be promoted to "strong" without a verified
+                // segment-vs-CD duration. This is a synthetic, no-media test.
+                var physical = new DigitalItem { Path = @"X:\\Music\\Mix.flac", Subsong = 0 };
+                var virtualOne = new DigitalItem { Path = physical.Path, Subsong = 1 };
+                var virtualTwo = new DigitalItem { Path = physical.Path, Subsong = 2 };
+                if (physical.IsVirtualSubsong || !virtualOne.IsVirtualSubsong ||
+                    !virtualTwo.SourceKindText.Contains("#2") ||
+                    !(new MatchRow { Path = virtualOne.Path, Subsong = 1 }).IsVirtualSubsong)
+                    throw new InvalidDataException("Digital match source-kind labels lost path+subsong provenance.");
+
+                if (DataStore.QualifiesStrongDigitalMatch(true, false, false, 1) ||
+                    !DataStore.QualifiesStrongDigitalMatch(true, false, true, 1) ||
+                    DataStore.QualifiesStrongDigitalMatch(true, true, false, 1) ||
+                    !DataStore.QualifiesStrongDigitalMatch(true, false, false, 0) ||
+                    DataStore.QualifiesStrongDigitalMatch(false, false, true, 1))
+                    throw new InvalidDataException("Virtual CUE duration did not gate strong matching.");
+
+                if (DataStore.MayProjectGenreFromStrongMatches(new System.Collections.Generic.List<DigitalItem> { virtualOne, virtualTwo }) ||
+                    !DataStore.MayProjectGenreFromStrongMatches(new System.Collections.Generic.List<DigitalItem> { virtualOne }) ||
+                    !DataStore.MayProjectGenreFromStrongMatches(new System.Collections.Generic.List<DigitalItem> { physical, new DigitalItem { Subsong = 0 } }))
+                    throw new InvalidDataException("Virtual CUE match ambiguity entered automatic genre projection.");
+
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
                     throw new InvalidDataException("Public-smoke unknown CDX classification failed.");
