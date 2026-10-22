@@ -192,6 +192,11 @@ namespace DJLibrary
         public string LevelText { get { return UiHelpers.DigitalLevelLabel(Level); } }
         public string ConfidenceText { get { return Confidence > 0 ? Confidence.ToString("0.00") : ""; } }
         public string MethodText { get { return GridRuntimeSupport.ReadableMatchMethod(Method); } }
+        // A nonzero foobar subsong is a playable virtual segment of its
+        // underlying file, not a distinct physical file in the DJ collection.
+        // It may come from embedded/external CUE or another input source.
+        public bool IsVirtualSubsong { get { return Subsong != 0; } }
+        public string SourceKindText { get { return IsVirtualSubsong ? "Virtueller Track #" + Subsong : "Physische Datei"; } }
     }
 
     public sealed class DigitalItem
@@ -199,6 +204,8 @@ namespace DJLibrary
         public int ItemId { get; set; }
         public string Path { get; set; }
         public int Subsong { get; set; }
+        public bool IsVirtualSubsong { get { return Subsong != 0; } }
+        public string SourceKindText { get { return IsVirtualSubsong ? "Virtueller Track #" + Subsong : "Physische Datei"; } }
         public string Artist { get; set; }
         public string Title { get; set; }
         public string OriginalTitle { get; set; }
