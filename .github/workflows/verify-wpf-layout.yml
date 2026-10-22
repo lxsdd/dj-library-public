@@ -1,0 +1,119 @@
+name: Verify WPF geometry and grid persistence
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/wpf-layout/**'
+      - '.github/workflows/verify-wpf-layout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-wpf-layout-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  real-wpf-layout:
+    runs-on: windows-2022
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Legacy .NET Framework 4.8 compile of actual persistence sources
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fx = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path -LiteralPath $fx)) { throw 'Missing .NET Framework compiler' }
+          $r = "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8"
+          $a = @('PresentationFramework','PresentationCore','WindowsBase','System.Xaml')
+          $args = @('/nologo','/target:library','/out:wpf-layout-legacy.dll')
+          foreach ($n in $a) {
+            $f = Join-Path $r "$n.dll"
+            if (-not (Test-Path -LiteralPath $f)) { throw "Missing .NET Framework WPF reference: $f" }
+            $args += "/reference:$f"
+          }
+          # The legacy Framework csc.exe resolves command-line sources by leaf name.
+          # Copy original production sources verbatim to root-level names for this compile.
+          Copy-Item -LiteralPath 'src/Settings.cs' -Destination 'WpfLayoutSettingsActual.cs'
+          Copy-Item -LiteralPath 'src/GridLayoutSettings.cs' -Destination 'WpfLayoutGridActual.cs'
+          Copy-Item -LiteralPath 'src/WindowGeometrySettings.cs' -Destination 'WpfLayoutWindowActual.cs'
+          Copy-Item -LiteralPath 'experiments/wpf-layout/Fixtures.cs' -Destination 'WpfLayoutInertFixtures.cs'
+          $args += 'WpfLayoutSettingsActual.cs'
+          $args += 'WpfLayoutGridActual.cs'
+          $args += 'WpfLayoutWindowActual.cs'
+          $args += 'WpfLayoutInertFixtures.cs'
+          & $fx @args
+          if ($LASTEXITCODE -ne 0) { throw 'Production WPF persistence source not compatible with .NET Framework' }
+          # Execute the SAME original XML settings source under .NET Framework,
+          # not just a cross-compiler check. No APPDATA/production profile.
+          $runtimeArgs = @('/nologo','/target:exe','/main:PersistenceCompatibilitySnapshot',
+            '/out:wpf-layout-legacy-serializer.exe')
+          foreach ($n in $a) {
+            $runtimeArgs += "/reference:$(Join-Path $r "$n.dll")"
+          }
+          # System.Xml is already a compiler-default reference on legacy csc.exe.
+          $runtimeArgs += 'WpfLayoutSettingsActual.cs'
+          $runtimeArgs += 'WpfLayoutGridActual.cs'
+          $runtimeArgs += 'WpfLayoutWindowActual.cs'
+          $runtimeArgs += 'WpfLayoutInertFixtures.cs'
+          # Legacy csc.exe resolves source paths by leaf name; use a root copy.
+          Copy-Item -LiteralPath 'experiments/wpf-layout/CompatibilitySnapshot.cs' -Destination 'WpfLayoutCompatSnapshot.cs'
+          $runtimeArgs += 'WpfLayoutCompatSnapshot.cs'
+          & $fx @runtimeArgs
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy original-settings serializer runtime compile failed' }
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Build actual persistence sources in modern WPF
+        shell: pwsh
+        run: |
+          dotnet build experiments/wpf-layout/WindowAndGridPersistence.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Modern WPF actual-source compile failed' }
+      - name: Verify two real WPF windows and XML-only in-memory round-trip
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'wpf-layout-smoke-error.txt'
+          $legacy = Join-Path $env:RUNNER_TEMP 'wpf-layout-legacy-settings.txt'
+          $modern = Join-Path $env:RUNNER_TEMP 'wpf-layout-modern-settings.txt'
+          $env:WPF_LAYOUT_SMOKE_REPORT = $report
+          $env:WPF_LAYOUT_COMPAT_REPORT = $legacy
+          & '.\wpf-layout-legacy-serializer.exe'
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $legacy)) {
+            throw 'Legacy .NET Framework original-settings runtime snapshot failed'
+          }
+          $env:WPF_LAYOUT_COMPAT_REPORT = $modern
+          $p = Start-Process dotnet -ArgumentList @('run','--project','experiments/wpf-layout/WindowAndGridPersistence.csproj','-c','Release','--no-build') -PassThru
+          try {
+            if (-not $p.WaitForExit(85000)) { throw 'Actual-WPF persistence smoke timed out' }
+            if ($p.ExitCode -ne 0) {
+              if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
+              throw "Actual-WPF persistence smoke failed ($($p.ExitCode))"
+            }
+            if (-not (Test-Path -LiteralPath $modern)) {
+              throw 'Modern .NET 10 original-settings runtime snapshot missing'
+            }
+            $legacyResult = Get-Content -LiteralPath $legacy -Raw -Encoding utf8
+            $modernResult = Get-Content -LiteralPath $modern -Raw -Encoding utf8
+            if ($legacyResult -cne $modernResult) {
+              Write-Host "LEGACY: $legacyResult"
+              Write-Host "MODERN: $modernResult"
+              throw 'BREAKING: Same original AppSettings XML semantic result differs between .NET Framework 4.8 and .NET 10'
+            }
+            if (-not $modernResult.Contains('PASS WPF cross-runtime AppSettings semantic XML:')) {
+              throw 'Missing expected WPF semantic settings contract report'
+            }
+            Write-Host 'PASS WPF cross-runtime AppSettings semantic XML: .NET Framework 4.8 and .NET 10 agree'
+          }
+          finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            $p.Dispose()
+          }
+      - name: Qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'PASS: original production WPF layout sources compile on both runtimes, runtime XML semantics agree and synthetic real windows round-trip in-memory state.'
+          Write-Host 'PENDING: real consumer settings file writes, event wiring, DPI, multi-monitor and end-user GUI acceptance.'
