@@ -92,6 +92,7 @@ namespace DJLibrary
 
             AddColumn(grid, "Level", "Quality of automatic matching.", "LevelText", 105);
             AddColumn(grid, "Match-Grund", "Specific evidence or matching method for this candidate.", "MethodText", 240);
+            AddColumn(grid, "Herkunft", "Physische Audiodatei (Subsong 0) oder virtueller foobar-Track (Subsong >0, z. B. aus Embedded/externem CUE). Virtuelle Tracks sind keine separaten Dateien.", "SourceKindText", 156);
             AddColumn(grid, "Konfidenz", "Interner Konfidenzwert des Matchers.", "ConfidenceText", 85);
             AddColumn(grid, "Artist", "Artist des digitalen candidates.", "Artist", 155);
             AddColumn(grid, "Title", "Title des digitalen candidates.", "Title", 190);
