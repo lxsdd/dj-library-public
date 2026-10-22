@@ -83,6 +83,7 @@ jobs:
           Compress-Archive -Path public-dist/* -DestinationPath DJLibrary-public-portable.zip
 
       - name: Upload clean portable build
+        if: false # No public binaries before product redistribution clearance
         uses: actions/upload-artifact@v4
         with:
           name: DJLibrary-public-portable
