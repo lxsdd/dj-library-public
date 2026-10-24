@@ -145,6 +145,7 @@ namespace DJLibrary
                 VerifyLiveBridgeIdentityIntegrity();
                 string scaleReport = VerifyLiveBridgeLargeGeneration();
                 string denseReport = VerifyLiveBridgeDenseCatalog();
+                string nativeBridgeReport = VerifyNativeBridgePublisherFixtureIfRequested();
 
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
@@ -153,12 +154,90 @@ namespace DJLibrary
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
                        "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
                        "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_NORMALIZED_IDENTITY_GATE, PASS_LIVE_ITEM_ID_LOOKUP, " +
-                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, " + scaleReport + ", " + denseReport + ", no user fixtures";
+                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, " + scaleReport + ", " + denseReport + ", " + nativeBridgeReport + ", no user fixtures";
             }
             finally
             {
                 try { Directory.Delete(dir, true); } catch { }
             }
+        }
+
+
+        // Read the actual native C++ Bridge Publisher's disposable 54,129-row
+        // v3 generation with this exact app's reader and live match engine.
+        private static string VerifyNativeBridgePublisherFixtureIfRequested()
+        {
+            string input = Environment.GetEnvironmentVariable("DJLIB_NATIVE_BRIDGE_FIXTURE");
+            if (String.IsNullOrWhiteSpace(input)) return "NATIVE_PRODUCER_INTEGRATION_NOT_REQUESTED";
+            string runner = Environment.GetEnvironmentVariable("RUNNER_TEMP");
+            if (Environment.GetEnvironmentVariable("GITHUB_ACTIONS") != "true" ||
+                String.IsNullOrWhiteSpace(runner))
+                throw new InvalidDataException("Native Bridge fixture is CI-only.");
+            string prefix = Path.GetFullPath(runner).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            string dir = Path.GetFullPath(input);
+            if (!dir.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) ||
+                Path.GetFileName(dir) != "g11-large")
+                throw new InvalidDataException("Untrusted native Publisher fixture outside runner temporary stage.");
+
+            BridgeSnapshotStatus status = BridgeSnapshotReader.Inspect(dir, true);
+            if (!status.Present || !status.Complete || !status.Compatible ||
+                status.Error != null && status.Error.Length != 0 ||
+                status.SchemaVersion != 3 || status.VerifiedItemCount != 54129 ||
+                status.DeclaredItemCount != 54129)
+                throw new InvalidDataException("Actual native Publisher v3 snapshot rejected.");
+            System.Collections.Generic.List<DigitalItem> rows = BridgeSnapshotReader.LoadItems(dir, status);
+            if (rows.Count != 54129) throw new InvalidDataException("Native Bridge record count changed.");
+
+            DigitalItem physical = null, cue = null;
+            foreach (DigitalItem row in rows)
+            {
+                if (String.Equals(row.Path, @"C:\SyntheticCI\Track10002.flac", StringComparison.OrdinalIgnoreCase)) physical = row;
+                if (String.Equals(row.Path, @"C:\SyntheticCI\Track10000.flac", StringComparison.OrdinalIgnoreCase)) cue = row;
+            }
+            if (physical == null || cue == null || physical.Subsong != 0 || cue.Subsong != 1 ||
+                physical.ItemId < 1 || cue.ItemId < 1 || physical.ItemId == cue.ItemId ||
+                physical.Genre != "Trance" || cue.Genre != "Trance" ||
+                String.IsNullOrEmpty(physical.MetadataVectorsJson) ||
+                String.IsNullOrEmpty(cue.MetadataVectorsJson) ||
+                !physical.MetadataVectorsJson.Contains("MOOD") || !cue.MetadataVectorsJson.Contains("MOOD"))
+                throw new InvalidDataException("Native Bridge physical/virtual or multivalue provenance lost.");
+
+            var store = new DataStore();
+            var t0 = new TrackRow { TrackId=9001, DiscId=901, Artist=physical.Artist,
+                Title=physical.Title, DisplayTitle=physical.Title,
+                DurationSeconds=physical.DurationSeconds, LegacyGenre="Legacy", Genre="Legacy" };
+            var t1 = new TrackRow { TrackId=9002, DiscId=902, Artist=cue.Artist,
+                Title=cue.Title, DisplayTitle=cue.Title,
+                DurationSeconds=cue.DurationSeconds, LegacyGenre="Legacy", Genre="Legacy" };
+            var d0 = new CdRow { DiscId=901, Tracks=1, LegacyGenre="Legacy", Genre="Legacy" };
+            var d1 = new CdRow { DiscId=902, Tracks=1, LegacyGenre="Legacy", Genre="Legacy" };
+            store.Tracks.Add(t0); store.Tracks.Add(t1);
+            store.Cds.Add(d0); store.Cds.Add(d1);
+            store.TracksByDisc.Add(901, new System.Collections.Generic.List<TrackRow> {t0});
+            store.TracksByDisc.Add(902, new System.Collections.Generic.List<TrackRow> {t1});
+            store.ApplyLiveDigitalItems(rows);
+            if (t0.StrongCount != 1 || t1.StrongCount != 1 ||
+                t0.Genre != "Trance" || t1.Genre != "Trance" ||
+                d0.Genre != "Trance" || d1.Genre != "Trance" ||
+                store.GetMatchesForTrack(9001).Count != 1 ||
+                store.GetMatchesForTrack(9001)[0].Subsong != 0 ||
+                store.GetMatchesForTrack(9002).Count != 1 ||
+                store.GetMatchesForTrack(9002)[0].Subsong != 1)
+                throw new InvalidDataException("Actual native producer failed latest DJ Library live GENRE matching.");
+
+            t1.DurationSeconds = 0;
+            store.ApplyLiveDigitalItems(rows);
+            if (t0.StrongCount != 1 || t0.Genre != "Trance" ||
+                t1.StrongCount != 0 || t1.Genre != "Legacy" || d1.Genre != "Legacy")
+                throw new InvalidDataException("Ambiguous virtual CUE promoted unqualified GENRE.");
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem>());
+            if (t0.DigitalCount != 0 || t1.DigitalCount != 0 ||
+                t0.Genre != "Legacy" || t1.Genre != "Legacy" ||
+                d0.Genre != "Legacy" || d1.Genre != "Legacy" ||
+                store.GetMatchesForTrack(9001).Count != 0 ||
+                store.GetMatchesForTrack(9002).Count != 0)
+                throw new InvalidDataException("Bridge generation replacement retained stale live matches.");
+            return "PASS_NATIVE_PUBLISHER_V3_54129_LIVE_GENRE_AND_CUE";
         }
 
         private static void VerifyLiveIdentityAndCueProjection()

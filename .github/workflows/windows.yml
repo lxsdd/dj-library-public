@@ -29,6 +29,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Checkout unchanged original Bridge v3 publisher source
+        uses: actions/checkout@v5
+        with:
+          repository: lxsdd/foo_dj_library_bridge
+          ref: f74c1c70c7e6744bc601f4c2ecaf1b7f4ba80803
+          path: native-bridge-producer
+          persist-credentials: false
+
       - name: Guard against tracked personal datasets
         shell: pwsh
         run: |
@@ -58,6 +66,28 @@ jobs:
         shell: cmd
         run: call BuildOnly.cmd
 
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build original C++ Bridge v3 Publisher and materialize 54129-row native fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $pin='f74c1c70c7e6744bc601f4c2ecaf1b7f4ba80803'
+          if((& git -C native-bridge-producer rev-parse HEAD).Trim() -cne $pin){throw 'Original Bridge source SHA mismatch'}
+          $msbuild=(Get-Command msbuild.exe -ErrorAction Stop).Source
+          & $msbuild native-bridge-producer/tests/publisher_integration.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /restore
+          if($LASTEXITCODE -ne 0){throw 'Original C++ Bridge Publisher failed to build'}
+          $testRoot=Join-Path $env:RUNNER_TEMP ('djlib-native-v3-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
+          if(Test-Path -LiteralPath $testRoot){throw 'Refusing an existing native fixture directory'}
+          $exe='native-bridge-producer/out/x64/Release/publisher_integration.exe'
+          if(-not(Test-Path -LiteralPath $exe -PathType Leaf)){throw 'Actual native Publisher exe missing'}
+          & $exe $testRoot
+          if($LASTEXITCODE -ne 0){throw 'Native Bridge v3 publisher fixture generation failed'}
+          $stage=Join-Path $testRoot 'stages/g11-large'
+          if(-not(Test-Path -LiteralPath (Join-Path $stage 'digital-items.tsv.gz') -PathType Leaf)){throw 'Native v3 54k producer snapshot missing'}
+          Add-Content -LiteralPath $env:GITHUB_ENV -Value ('DJLIB_NATIVE_BRIDGE_FIXTURE=' + $stage)
+          Write-Host 'PASS_ORIGINAL_CPP_BRIDGE_V3_PRODUCER_54129'
+
       - name: Run independent synthetic catalog, CDX and import tests
         shell: pwsh
         run: |
@@ -70,6 +100,7 @@ jobs:
           }
           $report = Get-Content SELF-TEST.txt -Raw
           if (-not $report.Contains('PASS_PUBLIC_CONTRACT')) { throw "Synthetic self test incomplete: $report" }
+          if (-not $report.Contains('PASS_NATIVE_PUBLISHER_V3_54129_LIVE_GENRE_AND_CUE')) { throw "Original C++ Bridge v3 to current full DJ Library matcher failed: $report" }
           Write-Host $report
 
       # Do not publish Windows product binaries from this source-only Draft.
