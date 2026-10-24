@@ -242,18 +242,25 @@ namespace DJLibrary
 
         public DigitalItem GetActiveDigitalItem(int itemId)
         {
-            if (itemId <= 0 || _activeLiveItems == null) return null;
-            foreach (DigitalItem item in _activeLiveItems)
-            {
-                if (item.ItemId == itemId) return item;
-            }
-            return null;
+            if (itemId <= 0 || _activeLiveItemsById == null) return null;
+            DigitalItem result;
+            return _activeLiveItemsById.TryGetValue(itemId, out result) ? result : null;
         }
 
         public string ApplyLiveDigitalItems(List<DigitalItem> items)
         {
             if (items == null) throw new ArgumentNullException("items");
-            _activeLiveItems = new List<DigitalItem>(items);
+            var generation = new List<DigitalItem>(items);
+            var byId = new Dictionary<int, DigitalItem>();
+            foreach (DigitalItem item in generation)
+            {
+                // Preserve the old linear lookup's first-duplicate-ID-wins behavior.
+                // Non-positive IDs must never become selectable.
+                if (item.ItemId > 0 && !byId.ContainsKey(item.ItemId))
+                    byId.Add(item.ItemId, item);
+            }
+            _activeLiveItems = generation;
+            _activeLiveItemsById = byId;
             // A completed bridge generation is authoritative. Rebuild derived match/genre state
             // from preserved legacy values so repeated generations never accumulate stale projections.
             MatchesByTrack.Clear(); DigitalItemCount = items.Count; ProjectedTrackGenreCount = 0; ProjectedCdGenreCount = 0;
