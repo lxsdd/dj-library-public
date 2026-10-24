@@ -1,0 +1,73 @@
+name: Experimental WPF JSON dual-runtime parity
+on:
+  pull_request:
+    paths:
+      - 'experiments/wpf-json-parity/**'
+      - '.github/workflows/verify-wpf-json-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wpf-json-parity-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  serializer-parity:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Compile original .NET Framework 4.8 Web serializer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fx = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          $pfx = [Environment]::GetFolderPath('ProgramFilesX86')
+          $ref = Join-Path $pfx 'Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8\System.Web.Extensions.dll'
+          if (-not (Test-Path $fx) -or -not (Test-Path $ref)) { throw 'Legacy compiler or System.Web.Extensions missing' }
+          Copy-Item -LiteralPath 'experiments/wpf-json-parity/JsonParityHarness.cs' -Destination 'JsonParityLegacy.cs'
+          # Legacy csc.exe already supplies System.Web.Extensions by default.
+          & $fx /nologo /target:exe /out:JsonParityLegacy.exe JsonParityLegacy.cs
+          if ($LASTEXITCODE -ne 0) { throw 'Original Framework serializer consumer did not compile' }
+      - name: Compile .NET 10 limited compatibility adapter
+        shell: pwsh
+        run: |
+          dotnet build experiments/wpf-json-parity/JsonParityModern.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw '.NET 10 adapter compile failed' }
+      - name: Compare executed original and modern serializer outputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $legacy = Join-Path $env:RUNNER_TEMP 'djlib-json-legacy.txt'
+          $modern = Join-Path $env:RUNNER_TEMP 'djlib-json-modern.txt'
+          $env:DJLIB_JSON_PARITY_TEMP_REPORT = $legacy
+          & '.\JsonParityLegacy.exe'
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $legacy)) { throw 'Original serializer execution failed' }
+          $env:DJLIB_JSON_PARITY_TEMP_REPORT = $modern
+          dotnet run --project experiments/wpf-json-parity/JsonParityModern.csproj -c Release --no-build
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path $modern)) { throw 'Modern adapter execution failed' }
+          $a = Get-Content -LiteralPath $legacy -Raw -Encoding utf8
+          $b = Get-Content -LiteralPath $modern -Raw -Encoding utf8
+          if ($a -cne $b) {
+            Write-Host 'LEGACY RESULT:'
+            Write-Host $a
+            Write-Host 'MODERN RESULT:'
+            Write-Host $b
+            throw 'JSON core runtime parity FAILED: no WPF .NET 10 migration approval'
+          }
+          if (-not $a.Contains('PASS DJLIB cross-runtime JSON semantic contract')) {
+            throw 'Expected semantic guard report missing'
+          }
+          Write-Host 'PASS: original Framework and .NET 10 adapter have equivalent tested JSON interchange semantics'
+      - name: Safety boundary
+        shell: pwsh
+        run: |
+          Write-Host 'No user files, catalog, APPDATA, DB, tags, packages or artifact upload.'
+          Write-Host 'DateTime and all historical edge cases remain unqualified.'
