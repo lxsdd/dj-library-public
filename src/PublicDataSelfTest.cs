@@ -114,6 +114,7 @@ namespace DJLibrary
                     if (!rejectedJson) throw new InvalidDataException("Foreign JSON format was accepted.");
                     Verify(catalog.GetCounts(), 1, 2, 2, "invalid JSON preserves live catalog");
                 }
+                VerifyCorruptPrimarySettingsBackupPreserved(dir);
                 // Virtual foobar CUE/subsong rows must remain searchable, yet
                 // must never be promoted to "strong" without a verified
                 // segment-vs-CD duration. This is a synthetic, no-media test.
@@ -154,7 +155,7 @@ namespace DJLibrary
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
                        "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
                        "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_NORMALIZED_IDENTITY_GATE, PASS_LIVE_ITEM_ID_LOOKUP, " +
-                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, " + scaleReport + ", " + denseReport + ", " + nativeBridgeReport + ", no user fixtures";
+                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, PASS_DJ_LIBRARY_SETTINGS_BACKUP_RECOVERY, " + scaleReport + ", " + denseReport + ", " + nativeBridgeReport + ", no user fixtures";
             }
             finally
             {
@@ -718,6 +719,41 @@ namespace DJLibrary
                 disc.Genre != "Trance" || store.GetMatchesForTrack(1).Count != 1 ||
                 store.GetMatchesForTrack(1)[0].Genre != "Trance")
                 throw new InvalidDataException("Duplicate Bridge ID distorted first-row projection.");
+        }
+
+        private static void VerifyCorruptPrimarySettingsBackupPreserved(string temporaryDirectory)
+        {
+            // A previous settings.xml.bak is our LAST healthy recovery copy.
+            // Calling File.Replace with a corrupt settings.xml as the old
+            // destination would otherwise overwrite that good backup.
+            string settings = Path.Combine(temporaryDirectory, "synthetic-settings.xml");
+            string backup = settings + ".bak";
+            SettingsManager.SaveForTesting(new AppSettings { SelectedTab = 1 }, settings);
+            SettingsManager.SaveForTesting(new AppSettings { SelectedTab = 0 }, settings);
+            if (!File.Exists(backup))
+                throw new InvalidDataException("Good settings backup not created during normal rotation.");
+
+            AppSettings originalBackup = SettingsManager.LoadForTesting(backup, backup);
+            if (originalBackup.SelectedTab != 1)
+                throw new InvalidDataException("Healthy primary rotation did not preserve earlier settings.");
+            string goodBackupBytes = Convert.ToBase64String(File.ReadAllBytes(backup));
+
+            // Deliberate malformed XML resides exclusively under this
+            // GUID-named disposable TEMP directory.
+            File.WriteAllText(settings, "<AppSettings><broken>");
+            SettingsManager.SaveForTesting(new AppSettings { SelectedTab = 0 }, settings);
+            if (goodBackupBytes != Convert.ToBase64String(File.ReadAllBytes(backup)))
+                throw new InvalidDataException("Saving after invalid primary destroyed the last good backup.");
+
+            AppSettings restored = SettingsManager.LoadForTesting(settings, backup);
+            if (restored.SelectedTab != 0 ||
+                SettingsManager.LoadForTesting(backup, backup).SelectedTab != 1)
+                throw new InvalidDataException("Healthy settings/backup were not independently recoverable.");
+
+            // The normal positive case must continue to rotate backups.
+            SettingsManager.SaveForTesting(new AppSettings { SelectedTab = 1 }, settings);
+            if (SettingsManager.LoadForTesting(backup, backup).SelectedTab != 0)
+                throw new InvalidDataException("Healthy settings no longer rotate the backup.");
         }
 
         private static void Verify(CatalogCounts counts, long releases, long discs, long tracks, string stage)
