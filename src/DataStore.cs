@@ -272,10 +272,22 @@ namespace DJLibrary
             Dictionary<string, List<DigitalItem>> byArtistBase = new Dictionary<string, List<DigitalItem>>(StringComparer.Ordinal);
             foreach (DigitalItem d in items)
             {
-                AddDigitalIndex(byArtistDisplay, Norm(d.Artist) + "\n" + Norm(d.Title), d);
+                // A separator-only key (e.g. "\nTitle" or "Artist\n") is
+                // not evidence of artist/title identity. Without this guard,
+                // empty or punctuation-only Bridge fields could promote a
+                // virtual CUE segment to STRONG and project its GENRE.
+                string artistKey = Norm(d.Artist);
+                if (artistKey.Length == 0) continue;
+                string displayKey = Norm(d.Title);
                 string digitalBase = !String.IsNullOrWhiteSpace(d.OriginalTitle) ? d.OriginalTitle : d.Title;
-                AddDigitalIndex(byArtistBase, Norm(d.Artist) + "\n" + Norm(digitalBase), d);
-                AddDigitalIndex(byArtistBaseVersion, Norm(d.Artist) + "\n" + Norm(digitalBase) + "\n" + Norm(d.RemixedBy), d);
+                string baseKey = Norm(digitalBase);
+                if (displayKey.Length != 0)
+                    AddDigitalIndex(byArtistDisplay, artistKey + "\n" + displayKey, d);
+                if (baseKey.Length != 0)
+                {
+                    AddDigitalIndex(byArtistBase, artistKey + "\n" + baseKey, d);
+                    AddDigitalIndex(byArtistBaseVersion, artistKey + "\n" + baseKey + "\n" + Norm(d.RemixedBy), d);
+                }
             }
 
             foreach (TrackRow t in Tracks)
