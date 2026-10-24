@@ -140,6 +140,7 @@ namespace DJLibrary
                 // Exercise the real live matcher and CD projection, not only its
                 // helper predicates. All rows below exist only in memory.
                 VerifyLiveIdentityAndCueProjection();
+                VerifyLiveNormalizedIdentityGate();
                 VerifyLiveDigitalLookupIndex();
                 VerifyLiveBridgeIdentityIntegrity();
                 string scaleReport = VerifyLiveBridgeLargeGeneration();
@@ -151,7 +152,7 @@ namespace DJLibrary
 
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
                        "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
-                       "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_ITEM_ID_LOOKUP, " +
+                       "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_NORMALIZED_IDENTITY_GATE, PASS_LIVE_ITEM_ID_LOOKUP, " +
                        "PASS_LIVE_BRIDGE_ID_INTEGRITY, " + scaleReport + ", " + denseReport + ", no user fixtures";
             }
             finally
@@ -259,6 +260,62 @@ namespace DJLibrary
                 disc.Genre != "Legacy" || store.ProjectedTrackGenreCount != 0 ||
                 store.GetMatchesForTrack(1).Count != 2)
                 throw new InvalidDataException("Competing virtual segments projected genre.");
+        }
+
+        // Regression: equal empty normalized strings do NOT establish mix/title identity.
+        // Positive controls retain meaningful structured and displayed-title matches.
+        private static void VerifyLiveNormalizedIdentityGate()
+        {
+            var store = new DataStore();
+            var track = new TrackRow {
+                TrackId = 1, DiscId = 1, Artist = "Example Artist",
+                Title = "Fictional Track", DisplayTitle = "Different Display",
+                Version = "!!!", DurationSeconds = 180,
+                LegacyGenre = "Legacy", Genre = "Legacy"
+            };
+            var disc = new CdRow { DiscId = 1, Tracks = 1, LegacyGenre = "Legacy", Genre = "Legacy" };
+            store.Tracks.Add(track);
+            store.Cds.Add(disc);
+            store.TracksByDisc.Add(1, new System.Collections.Generic.List<TrackRow> { track });
+            var item = new DigitalItem {
+                ItemId = 101, Subsong = 1, Artist = "Example Artist",
+                Title = "Another Display", OriginalTitle = "Fictional Track",
+                RemixedBy = "", DurationSeconds = 180, Genre = "Trance"
+            };
+            var generation = new System.Collections.Generic.List<DigitalItem> { item };
+
+            // Old behavior: Norm("!!!") == Norm("") incorrectly granted STRONG.
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy" ||
+                track.GenreProjected || disc.GenreProjected ||
+                store.GetMatchesForTrack(1).Count != 1)
+                throw new InvalidDataException("Punctuation-only mix identity projected a virtual GENRE.");
+
+            track.Version = "Extended Mix";
+            item.RemixedBy = "Extended Mix";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance" || store.ProjectedTrackGenreCount != 1)
+                throw new InvalidDataException("Meaningful structured mix identity regressed.");
+
+            // Old behavior: Norm("---") == Norm("!!!") incorrectly granted STRONG.
+            track.Version = "";
+            track.DisplayTitle = "---";
+            item.Title = "!!!";
+            item.RemixedBy = "";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy" ||
+                track.GenreProjected || disc.GenreProjected)
+                throw new InvalidDataException("Punctuation-only display identity projected a virtual GENRE.");
+
+            track.DisplayTitle = "Fictional Track";
+            item.Title = "Fictional Track";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance" || store.GetMatchesForTrack(1).Count != 1)
+                throw new InvalidDataException("Meaningful displayed-title identity regressed.");
         }
 
         private static void VerifyLiveDigitalLookupIndex()

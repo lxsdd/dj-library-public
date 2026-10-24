@@ -318,7 +318,8 @@ namespace DJLibrary
                 byArtistDisplay.TryGetValue(Norm(t.Artist) + "\n" + Norm(displayTitle), out exactDisplay);
 
                 List<DigitalItem> exactStructured = null;
-                if (!String.IsNullOrWhiteSpace(t.Version))
+                // A punctuation-only version is not a usable mix identity.
+                if (Norm(t.Version).Length != 0)
                     byArtistBaseVersion.TryGetValue(Norm(t.Artist) + "\n" + Norm(t.Title) + "\n" + Norm(t.Version), out exactStructured);
 
                 List<DigitalItem> exactBase = null;
@@ -338,9 +339,14 @@ namespace DJLibrary
                     foreach (DigitalItem d in candidates)
                     {
                         string digitalBase = !String.IsNullOrWhiteSpace(d.OriginalTitle) ? d.OriginalTitle : d.Title;
-                        bool structured = !String.IsNullOrWhiteSpace(t.Version) &&
-                            Norm(digitalBase) == Norm(t.Title) && Norm(d.RemixedBy) == Norm(t.Version);
-                        bool displayExact = Norm(d.Title) == Norm(displayTitle);
+                        // Two empty normalized strings do not establish identity.
+                        // Punctuation-only versions/displays must not project GENRE.
+                        string normalizedVersion = Norm(t.Version);
+                        string normalizedDisplay = Norm(displayTitle);
+                        bool structured = normalizedVersion.Length != 0 &&
+                            Norm(digitalBase) == Norm(t.Title) && Norm(d.RemixedBy) == normalizedVersion;
+                        bool displayExact = normalizedDisplay.Length != 0 &&
+                            Norm(d.Title) == normalizedDisplay;
                         bool identityExact = structured || displayExact;
                         bool durationKnown = t.DurationSeconds > 0 && d.DurationSeconds > 0;
                         double durationDiff = durationKnown ? Math.Abs(t.DurationSeconds - d.DurationSeconds) : 0;
