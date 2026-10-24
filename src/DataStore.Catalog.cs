@@ -9,6 +9,8 @@ namespace DJLibrary
     public sealed partial class DataStore
     {
         private List<DigitalItem> _activeLiveItems;
+        // Snapshot-scoped ID lookup for 50k+ Bridge rows; replace every generation.
+        private Dictionary<int, DigitalItem> _activeLiveItemsById;
         private readonly JavaScriptSerializer _catalogJson = new JavaScriptSerializer();
 
         public void LoadFromCatalog(CatalogService catalog, string referenceMatchesPath)
