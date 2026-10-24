@@ -140,6 +140,7 @@ namespace DJLibrary
                 // Exercise the real live matcher and CD projection, not only its
                 // helper predicates. All rows below exist only in memory.
                 VerifyLiveIdentityAndCueProjection();
+                VerifyLiveDigitalLookupIndex();
 
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
@@ -147,7 +148,7 @@ namespace DJLibrary
 
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
                        "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
-                       "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, no user fixtures";
+                       "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_ITEM_ID_LOOKUP, no user fixtures";
             }
             finally
             {
@@ -254,6 +255,42 @@ namespace DJLibrary
                 disc.Genre != "Legacy" || store.ProjectedTrackGenreCount != 0 ||
                 store.GetMatchesForTrack(1).Count != 2)
                 throw new InvalidDataException("Competing virtual segments projected genre.");
+        }
+
+        private static void VerifyLiveDigitalLookupIndex()
+        {
+            var store = new DataStore();
+            if (store.GetActiveDigitalItem(1) != null ||
+                store.GetActiveDigitalItem(0) != null)
+                throw new InvalidDataException("Uninitialized live lookup returned an item.");
+
+            // Exercise the UI's actual ID lookup with synthetic, high/sparse IDs
+            // and a repeated ID, without reading user audio or bridge metadata.
+            var first = new DigitalItem { ItemId = 17, Artist = "First" };
+            var duplicate = new DigitalItem { ItemId = 17, Artist = "Duplicate" };
+            var last = new DigitalItem { ItemId = 50000, Artist = "Last" };
+            var generation = new System.Collections.Generic.List<DigitalItem> {
+                first, duplicate, new DigitalItem { ItemId = 0 }, last
+            };
+            store.ApplyLiveDigitalItems(generation);
+            generation.Clear(); // The store owns the generation's list snapshot.
+            if (!Object.ReferenceEquals(store.GetActiveDigitalItem(17), first) ||
+                !Object.ReferenceEquals(store.GetActiveDigitalItem(50000), last) ||
+                store.GetActiveDigitalItem(0) != null ||
+                store.GetActiveDigitalItem(-2) != null ||
+                store.GetActiveDigitalItem(49999) != null)
+                throw new InvalidDataException("Live index changed lookup/duplicate-ID behavior.");
+
+            var replacement = new DigitalItem { ItemId = 17, Artist = "New generation" };
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> { replacement });
+            if (!Object.ReferenceEquals(store.GetActiveDigitalItem(17), replacement) ||
+                store.GetActiveDigitalItem(50000) != null)
+                throw new InvalidDataException("Live index retained a stale Bridge generation.");
+
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem>());
+            if (store.GetActiveDigitalItem(17) != null ||
+                store.GetActiveDigitalItem(50000) != null)
+                throw new InvalidDataException("Empty Bridge generation retained stale lookups.");
         }
 
         private static void Verify(CatalogCounts counts, long releases, long discs, long tracks, string stage)
