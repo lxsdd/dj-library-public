@@ -66,15 +66,22 @@ jobs:
         shell: cmd
         run: call BuildOnly.cmd
 
-      - uses: microsoft/setup-msbuild@v2
-
       - name: Build original C++ Bridge v3 Publisher and materialize 54129-row native fixture
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $pin='f74c1c70c7e6744bc601f4c2ecaf1b7f4ba80803'
           if((& git -C native-bridge-producer rev-parse HEAD).Trim() -cne $pin){throw 'Original Bridge source SHA mismatch'}
-          $msbuild=(Get-Command msbuild.exe -ErrorAction Stop).Source
+          # The repository permits only lxsdd-owned or allowlisted GitHub Actions.
+          # Windows 2022 already includes VS2022 and vswhere: no third-party setup action.
+          $vswhere=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if(-not(Test-Path -LiteralPath $vswhere -PathType Leaf)){throw 'Microsoft VS installer vswhere missing from windows-2022 image'}
+          $vsroot=[string](& $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild -property installationPath)
+          $vsroot=$vsroot.Trim()
+          if([string]::IsNullOrWhiteSpace($vsroot)){throw 'No MSBuild-equipped Visual Studio found'}
+          $msbuild=Join-Path $vsroot 'MSBuild\Current\Bin\MSBuild.exe'
+          if(-not(Test-Path -LiteralPath $msbuild -PathType Leaf)){throw 'VS2022 MSBuild.exe path is missing'}
+          Write-Host 'PASS_ALLOWLIST_SAFE_PREINSTALLED_MSBUILD'
           & $msbuild native-bridge-producer/tests/publisher_integration.vcxproj /m /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /restore
           if($LASTEXITCODE -ne 0){throw 'Original C++ Bridge Publisher failed to build'}
           $testRoot=Join-Path $env:RUNNER_TEMP ('djlib-native-v3-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT)
