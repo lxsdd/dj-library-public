@@ -143,6 +143,7 @@ namespace DJLibrary
                 VerifyLiveDigitalLookupIndex();
                 VerifyLiveBridgeIdentityIntegrity();
                 string scaleReport = VerifyLiveBridgeLargeGeneration();
+                string denseReport = VerifyLiveBridgeDenseCatalog();
 
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
@@ -151,7 +152,7 @@ namespace DJLibrary
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
                        "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
                        "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_ITEM_ID_LOOKUP, " +
-                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, " + scaleReport + ", no user fixtures";
+                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, " + scaleReport + ", " + denseReport + ", no user fixtures";
             }
             finally
             {
@@ -386,6 +387,121 @@ namespace DJLibrary
             return "PASS_LIVE_BRIDGE_54K_SCALE(items=" + itemCount +
                 ";lookups=" + lookupProbes + ";apply_ms=" + applyMs +
                 ";lookup_ms=" + lookupMs + ")";
+        }
+
+
+        // Synthetic stress of dense CD-track matching, not only 54k sparse ID lookup.
+        // Each of 12 CDs contributes 1,000 real match candidates; no user fixtures.
+        private static string VerifyLiveBridgeDenseCatalog()
+        {
+            const int discCount = 12;
+            const int tracksPerDisc = 1000;
+            const int catalogTrackCount = discCount * tracksPerDisc;
+            const int bridgeItemCount = 54129;
+            var store = new DataStore();
+            var tracks = new System.Collections.Generic.List<TrackRow>(catalogTrackCount);
+            string[] genres = { "Trance", "House", "Techno" };
+
+            for (int discId = 1; discId <= discCount; discId++)
+            {
+                var disc = new CdRow {
+                    DiscId = discId, Tracks = tracksPerDisc,
+                    LegacyGenre = "Legacy", Genre = "Legacy"
+                };
+                store.Cds.Add(disc);
+                var discTracks = new System.Collections.Generic.List<TrackRow>(tracksPerDisc);
+                for (int position = 1; position <= tracksPerDisc; position++)
+                {
+                    int id = (discId - 1) * tracksPerDisc + position;
+                    string label = id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    var track = new TrackRow {
+                        TrackId = id, DiscId = discId,
+                        Artist = "Synthetic CD Artist", Title = "Dense Track " + label,
+                        DisplayTitle = "Dense Track " + label,
+                        DurationSeconds = 180, LegacyGenre = "Legacy", Genre = "Legacy"
+                    };
+                    tracks.Add(track);
+                    discTracks.Add(track);
+                    store.Tracks.Add(track);
+                }
+                store.TracksByDisc.Add(discId, discTracks);
+            }
+
+            var bridge = new System.Collections.Generic.List<DigitalItem>(bridgeItemCount);
+            for (int id = 1; id <= bridgeItemCount; id++)
+            {
+                string label = id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                bool inCatalog = id <= catalogTrackCount;
+                bridge.Add(new DigitalItem {
+                    ItemId = id, Path = @"X:\Synthetic\Dense\" + label + ".flac",
+                    Subsong = inCatalog && id % 17 == 0 ? 1 : 0,
+                    Artist = inCatalog ? "Synthetic CD Artist" : "Unrelated Bridge Artist",
+                    Title = inCatalog ? "Dense Track " + label : "Noise " + label,
+                    DurationSeconds = 180,
+                    Genre = inCatalog ? genres[(id - 1) / tracksPerDisc % genres.Length] : "Other"
+                });
+            }
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            store.ApplyLiveDigitalItems(bridge);
+            long applyMs = watch.ElapsedMilliseconds;
+            if (store.DigitalItemCount != bridgeItemCount ||
+                store.ProjectedTrackGenreCount != catalogTrackCount ||
+                store.ProjectedCdGenreCount != discCount)
+                throw new InvalidDataException("Dense synthetic CD catalog lost matches or genre projections.");
+
+            foreach (TrackRow track in tracks)
+            {
+                var matches = store.GetMatchesForTrack(track.TrackId);
+                string expectedGenre = genres[(track.DiscId - 1) % genres.Length];
+                if (track.DigitalCount != 1 || track.StrongCount != 1 ||
+                    track.LikelyCount != 0 || track.CandidateCount != 0 ||
+                    matches.Count != 1 || matches[0].DigitalItemId != track.TrackId ||
+                    track.Genre != expectedGenre || !track.GenreProjected ||
+                    matches[0].Subsong != (track.TrackId % 17 == 0 ? 1 : 0))
+                    throw new InvalidDataException("Dense synthetic CD matched the wrong Bridge source.");
+            }
+            foreach (CdRow disc in store.Cds)
+            {
+                string expectedGenre = genres[(disc.DiscId - 1) % genres.Length];
+                if (disc.Genre != expectedGenre || !disc.GenreProjected ||
+                    disc.ProjectedGenreTrackCount != tracksPerDisc ||
+                    disc.StrongTracks != tracksPerDisc ||
+                    disc.GenreCoverage != 1.0 || disc.GenreDominance != 1.0)
+                    throw new InvalidDataException("Dense synthetic CD genre consensus changed.");
+            }
+
+            // A new Bridge generation must revoke all 12,000 derived matches and
+            // all CD projections, not just the 54,129 source ID lookup entries.
+            var replacement = new DigitalItem {
+                ItemId = 1, Artist = "Other Artist", Title = "Unrelated Track",
+                DurationSeconds = 180, Genre = "Other"
+            };
+            watch.Restart();
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> { replacement });
+            long clearMs = watch.ElapsedMilliseconds;
+            if (store.DigitalItemCount != 1 ||
+                store.ProjectedTrackGenreCount != 0 ||
+                store.ProjectedCdGenreCount != 0 ||
+                !Object.ReferenceEquals(store.GetActiveDigitalItem(1), replacement) ||
+                store.GetActiveDigitalItem(bridgeItemCount) != null)
+                throw new InvalidDataException("Dense synthetic Bridge replacement retained stale source IDs.");
+            foreach (TrackRow track in tracks)
+            {
+                if (track.DigitalCount != 0 || track.Genre != "Legacy" ||
+                    track.GenreProjected || store.GetMatchesForTrack(track.TrackId).Count != 0 ||
+                    track.SearchText.Contains("trance") || track.SearchText.Contains("techno"))
+                    throw new InvalidDataException("Dense synthetic Bridge replacement retained stale matches.");
+            }
+            foreach (CdRow disc in store.Cds)
+            {
+                if (disc.Genre != "Legacy" || disc.GenreProjected ||
+                    disc.ProjectedGenreTrackCount != 0 || disc.StrongTracks != 0)
+                    throw new InvalidDataException("Dense synthetic Bridge replacement retained stale CD consensus.");
+            }
+            return "PASS_LIVE_BRIDGE_DENSE_12K_CATALOG(tracks=" + catalogTrackCount +
+                ";items=" + bridgeItemCount + ";discs=" + discCount +
+                ";apply_ms=" + applyMs + ";clear_ms=" + clearMs + ")";
         }
 
         private static void VerifyLiveBridgeIdentityIntegrity()
