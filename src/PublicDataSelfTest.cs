@@ -142,6 +142,7 @@ namespace DJLibrary
                 VerifyLiveIdentityAndCueProjection();
                 VerifyLiveDigitalLookupIndex();
                 VerifyLiveBridgeIdentityIntegrity();
+                string scaleReport = VerifyLiveBridgeLargeGeneration();
 
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
@@ -150,7 +151,7 @@ namespace DJLibrary
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
                        "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
                        "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_ITEM_ID_LOOKUP, " +
-                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, no user fixtures";
+                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, " + scaleReport + ", no user fixtures";
             }
             finally
             {
@@ -295,6 +296,97 @@ namespace DJLibrary
                 throw new InvalidDataException("Empty Bridge generation retained stale lookups.");
         }
 
+
+        // Source-only capacity regression modeled on the real 54k+ foobar Bridge.
+        // No owner paths, media, profile or database; all entities are synthetic.
+        // Durations are diagnostics, not a hard wall-clock PASS threshold on shared CI.
+        private static string VerifyLiveBridgeLargeGeneration()
+        {
+            const int itemCount = 54129;
+            const int lookupProbes = 40000;
+            var store = new DataStore();
+            var tracks = new System.Collections.Generic.List<TrackRow>();
+            var disc = new CdRow { DiscId = 1, Tracks = 3, LegacyGenre = "Legacy", Genre = "Legacy" };
+            store.Cds.Add(disc);
+            int[] targets = { 1, 27065, itemCount };
+            for (int i = 0; i < targets.Length; i++)
+            {
+                int id = targets[i];
+                var track = new TrackRow {
+                    TrackId = i + 1, DiscId = 1, Artist = "Synthetic Artist",
+                    Title = "Synthetic Track " + id.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    DurationSeconds = 180, LegacyGenre = "Legacy", Genre = "Legacy"
+                };
+                track.DisplayTitle = track.Title;
+                tracks.Add(track);
+                store.Tracks.Add(track);
+            }
+            store.TracksByDisc.Add(disc.DiscId, tracks);
+            var generation = new System.Collections.Generic.List<DigitalItem>(itemCount);
+            for (int id = 1; id <= itemCount; id++)
+            {
+                string label = id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                generation.Add(new DigitalItem {
+                    ItemId = id, Path = @"X:\Synthetic\Bridge\" + label + ".flac",
+                    Subsong = id == 27065 ? 1 : 0,
+                    Artist = "Synthetic Artist", Title = "Synthetic Track " + label,
+                    DurationSeconds = 180,
+                    Genre = id == 1 || id == 27065 || id == itemCount ? "Trance" : "House"
+                });
+            }
+
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            store.ApplyLiveDigitalItems(generation);
+            long applyMs = watch.ElapsedMilliseconds;
+            if (store.DigitalItemCount != itemCount ||
+                store.ProjectedTrackGenreCount != 3 ||
+                store.ProjectedCdGenreCount != 1 ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("54k synthetic Bridge generation lost matched tracks or genre consensus.");
+            for (int i = 0; i < tracks.Count; i++)
+            {
+                if (tracks[i].DigitalCount != 1 || tracks[i].StrongCount != 1 ||
+                    tracks[i].Genre != "Trance" || store.GetMatchesForTrack(tracks[i].TrackId).Count != 1)
+                    throw new InvalidDataException("54k synthetic Bridge lookup changed the real matching path.");
+            }
+
+            watch.Restart();
+            for (int i = 0; i < lookupProbes; i++)
+            {
+                int id = 1 + (i * 7919 % itemCount);
+                if (!Object.ReferenceEquals(store.GetActiveDigitalItem(id), generation[id - 1]))
+                    throw new InvalidDataException("54k synthetic Bridge indexed ID lookup returned the wrong row.");
+            }
+            long lookupMs = watch.ElapsedMilliseconds;
+            if (store.GetActiveDigitalItem(0) != null ||
+                store.GetActiveDigitalItem(itemCount + 1) != null)
+                throw new InvalidDataException("54k Bridge indexed lookup accepted an invalid ID.");
+
+            // A replacement generation must retire all 54k previous row identities
+            // AND all derived match/genre/search state, with no stale strong vote.
+            var newItem = new DigitalItem {
+                ItemId = 27065, Artist = "Different Artist", Title = "Different Track",
+                Genre = "Techno", Subsong = 0
+            };
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> { newItem });
+            if (store.DigitalItemCount != 1 ||
+                !Object.ReferenceEquals(store.GetActiveDigitalItem(27065), newItem) ||
+                store.GetActiveDigitalItem(1) != null ||
+                store.GetActiveDigitalItem(itemCount) != null ||
+                store.ProjectedTrackGenreCount != 0 ||
+                store.ProjectedCdGenreCount != 0 || disc.Genre != "Legacy")
+                throw new InvalidDataException("54k Bridge generation replacement retained stale identities or genre.");
+            foreach (TrackRow t in tracks)
+            {
+                if (t.DigitalCount != 0 || t.Genre != "Legacy" ||
+                    store.GetMatchesForTrack(t.TrackId).Count != 0 ||
+                    t.SearchText.Contains("trance"))
+                    throw new InvalidDataException("54k Bridge replacement retained stale digital match/search state.");
+            }
+            return "PASS_LIVE_BRIDGE_54K_SCALE(items=" + itemCount +
+                ";lookups=" + lookupProbes + ";apply_ms=" + applyMs +
+                ";lookup_ms=" + lookupMs + ")";
+        }
 
         private static void VerifyLiveBridgeIdentityIntegrity()
         {
