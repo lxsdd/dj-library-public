@@ -254,8 +254,12 @@ namespace DJLibrary
             var byId = new Dictionary<int, DigitalItem>();
             foreach (DigitalItem item in generation)
             {
-                // Preserve the old linear lookup's first-duplicate-ID-wins behavior.
-                // Non-positive IDs must never become selectable.
+                // Reject a malformed generation before touching the active snapshot,
+                // matches or projected genres. A null entry otherwise crashes after
+                // the previous live generation has already been discarded.
+                if (item == null)
+                    throw new InvalidDataException("Bridge generation contains a null digital item.");
+                // Preserve the UI's first-positive-ID-wins lookup contract.
                 if (item.ItemId > 0 && !byId.ContainsKey(item.ItemId))
                     byId.Add(item.ItemId, item);
             }
@@ -277,8 +281,15 @@ namespace DJLibrary
             Dictionary<string, List<DigitalItem>> byArtistDisplay = new Dictionary<string, List<DigitalItem>>(StringComparer.Ordinal);
             Dictionary<string, List<DigitalItem>> byArtistBaseVersion = new Dictionary<string, List<DigitalItem>>(StringComparer.Ordinal);
             Dictionary<string, List<DigitalItem>> byArtistBase = new Dictionary<string, List<DigitalItem>>(StringComparer.Ordinal);
-            foreach (DigitalItem d in items)
+            foreach (DigitalItem d in generation)
             {
+                // Match only the same first positive-ID row exposed by the UI.
+                // Duplicate IDs must not contribute conflicting/phantom matches
+                // or GENRE votes; non-positive IDs cannot be selected at all.
+                DigitalItem canonical;
+                if (d.ItemId <= 0 || !byId.TryGetValue(d.ItemId, out canonical) ||
+                    !Object.ReferenceEquals(canonical, d))
+                    continue;
                 // A separator-only key (e.g. "\nTitle" or "Artist\n") is
                 // not evidence of artist/title identity. Without this guard,
                 // empty or punctuation-only Bridge fields could promote a

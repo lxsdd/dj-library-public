@@ -141,6 +141,7 @@ namespace DJLibrary
                 // helper predicates. All rows below exist only in memory.
                 VerifyLiveIdentityAndCueProjection();
                 VerifyLiveDigitalLookupIndex();
+                VerifyLiveBridgeIdentityIntegrity();
 
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
@@ -148,7 +149,8 @@ namespace DJLibrary
 
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
                        "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
-                       "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_ITEM_ID_LOOKUP, no user fixtures";
+                       "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, PASS_LIVE_ITEM_ID_LOOKUP, " +
+                       "PASS_LIVE_BRIDGE_ID_INTEGRITY, no user fixtures";
             }
             finally
             {
@@ -291,6 +293,87 @@ namespace DJLibrary
             if (store.GetActiveDigitalItem(17) != null ||
                 store.GetActiveDigitalItem(50000) != null)
                 throw new InvalidDataException("Empty Bridge generation retained stale lookups.");
+        }
+
+
+        private static void VerifyLiveBridgeIdentityIntegrity()
+        {
+            var store = new DataStore();
+            var track = new TrackRow {
+                TrackId = 1, DiscId = 1, Artist = "Example Artist",
+                Title = "Fictional Track", DisplayTitle = "Fictional Track",
+                DurationSeconds = 180, LegacyGenre = "Legacy", Genre = "Legacy"
+            };
+            var disc = new CdRow { DiscId = 1, Tracks = 1, LegacyGenre = "Legacy", Genre = "Legacy" };
+            store.Tracks.Add(track);
+            store.Cds.Add(disc);
+            store.TracksByDisc.Add(1, new System.Collections.Generic.List<TrackRow> { track });
+
+            var valid = new DigitalItem {
+                ItemId = 31, Artist = "Example Artist", Title = "Fictional Track",
+                DurationSeconds = 180, Subsong = 1, Genre = "Trance"
+            };
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> { valid });
+            if (track.Genre != "Trance" || disc.Genre != "Trance" ||
+                store.GetMatchesForTrack(1).Count != 1)
+                throw new InvalidDataException("Valid Bridge baseline did not project.");
+
+            // An invalid generation must not destroy a previously accepted one.
+            bool rejectedNull = false;
+            try {
+                store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> {
+                    new DigitalItem { ItemId = 55 }, null
+                });
+            }
+            catch (InvalidDataException) { rejectedNull = true; }
+            if (!rejectedNull || !Object.ReferenceEquals(store.GetActiveDigitalItem(31), valid) ||
+                track.Genre != "Trance" || disc.Genre != "Trance" ||
+                store.DigitalItemCount != 1 || store.GetMatchesForTrack(1).Count != 1)
+                throw new InvalidDataException("Malformed Bridge generation corrupted live state.");
+
+            // Rows without selectable IDs must never grant GENRE evidence.
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> {
+                new DigitalItem { ItemId = 0, Artist = "Example Artist",
+                    Title = "Fictional Track", Genre = "Wrong" },
+                new DigitalItem { ItemId = -7, Artist = "Example Artist",
+                    Title = "Fictional Track", Genre = "Wrong" }
+            });
+            if (track.DigitalCount != 0 || track.Genre != "Legacy" ||
+                disc.Genre != "Legacy" || store.GetMatchesForTrack(1).Count != 0)
+                throw new InvalidDataException("Non-positive Bridge IDs produced phantom matches.");
+
+            // The second occurrence of an ID cannot match when the first
+            // (the only row returned by GetActiveDigitalItem) does not match.
+            var firstOther = new DigitalItem {
+                ItemId = 31, Artist = "Other", Title = "Other", Genre = "Wrong"
+            };
+            var laterMatching = new DigitalItem {
+                ItemId = 31, Artist = "Example Artist", Title = "Fictional Track",
+                DurationSeconds = 180, Subsong = 1, Genre = "Wrong"
+            };
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> {
+                firstOther, laterMatching
+            });
+            if (!Object.ReferenceEquals(store.GetActiveDigitalItem(31), firstOther) ||
+                track.DigitalCount != 0 || track.Genre != "Legacy" ||
+                store.GetMatchesForTrack(1).Count != 0)
+                throw new InvalidDataException("Duplicate Bridge ID matched a hidden later row.");
+
+            // Conversely, an eligible first row must remain the sole source of
+            // confidence and genre, regardless of a later conflicting duplicate.
+            var conflicting = new DigitalItem {
+                ItemId = 31, Artist = "Example Artist", Title = "Fictional Track",
+                DurationSeconds = 180, Subsong = 1, Genre = "Techno"
+            };
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> {
+                valid, conflicting
+            });
+            if (!Object.ReferenceEquals(store.GetActiveDigitalItem(31), valid) ||
+                track.DigitalCount != 1 || track.StrongCount != 1 ||
+                track.Genre != "Trance" || track.GenreEvidenceCount != 1 ||
+                disc.Genre != "Trance" || store.GetMatchesForTrack(1).Count != 1 ||
+                store.GetMatchesForTrack(1)[0].Genre != "Trance")
+                throw new InvalidDataException("Duplicate Bridge ID distorted first-row projection.");
         }
 
         private static void Verify(CatalogCounts counts, long releases, long discs, long tracks, string stage)
