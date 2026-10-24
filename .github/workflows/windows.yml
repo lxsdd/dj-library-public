@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - 'migration/**'
+      # Qualify this conflicted Draft's exact source HEAD even when GitHub
+      # cannot synthesize a pull_request merge commit. Source-only, no uploads.
+      - 'fix/virtual-subtrack-match-provenance-20261022'
   pull_request:
     branches: [main]
   workflow_dispatch:
