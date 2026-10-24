@@ -117,6 +117,25 @@ jobs:
           if (-not $report.Contains('PASS_NATIVE_PUBLISHER_V3_54129_LIVE_GENRE_AND_CUE')) { throw "Original C++ Bridge v3 to current full DJ Library matcher failed: $report" }
           Write-Host $report
 
+      - name: Install pinned .NET 10 SDK for isolated UI Automation probe
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+
+      - name: Compile external real WPF UI Automation test
+        shell: pwsh
+        run: |
+          dotnet build tests/GuiInteractionProbe.csproj -c Release --nologo
+          if($LASTEXITCODE -ne 0){throw 'External WPF UI Automation probe did not compile'}
+
+      - name: Validate actual Framework WPF tabs, keyboard, resize and settings reopen
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          & ./tests/verify-real-wpf-gui.ps1 -PortableFolder (Get-Location).Path
+          if($LASTEXITCODE -and $LASTEXITCODE -ne 0){throw 'Real WPF GUI smoke failed'}
+          Write-Host 'PASS_CURRENT_FRAMEWORK_WPF_REAL_GUI_RESTART_AND_PERSISTENCE'
+
       # Do not publish Windows product binaries from this source-only Draft.
       # Parallel source-only safety proposal PR #12 remains independent.
       - name: Package app without user data
