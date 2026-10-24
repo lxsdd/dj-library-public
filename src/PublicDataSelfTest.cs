@@ -137,17 +137,111 @@ namespace DJLibrary
                     !DataStore.MayProjectGenreFromStrongMatches(new System.Collections.Generic.List<DigitalItem> { physical, new DigitalItem { Subsong = 0 } }))
                     throw new InvalidDataException("Virtual CUE match ambiguity entered automatic genre projection.");
 
+                // Exercise the real live matcher and CD projection, not only its
+                // helper predicates. All rows below exist only in memory.
+                VerifyLiveIdentityAndCueProjection();
+
                 if (CdxCompatibility.Classify("150 360150", false) != CdxCompatibilityState.Unknown ||
                     CdxCompatibility.Classify("150 360150 2965", true) != CdxCompatibilityState.Unknown)
                     throw new InvalidDataException("Public-smoke unknown CDX classification failed.");
 
                 return "PASS_PUBLIC_CONTRACT: clean schema-v4 bootstrap, synthetic CRUD, native projection, " +
-                       "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, no user fixtures";
+                       "CDX compatible/incompatible/unknown, SQLite WAL/gzip/base64 and JSON v1 roundtrip, " +
+                       "PASS_LIVE_IDENTITY_AND_CUE_PROJECTION, no user fixtures";
             }
             finally
             {
                 try { Directory.Delete(dir, true); } catch { }
             }
+        }
+
+        private static void VerifyLiveIdentityAndCueProjection()
+        {
+            var store = new DataStore();
+            var track = new TrackRow {
+                TrackId = 1, DiscId = 1, Artist = "Example Artist",
+                Title = "Fictional Cue Track", DisplayTitle = "Fictional Cue Track",
+                DurationSeconds = 180, LegacyGenre = "Legacy", Genre = "Legacy"
+            };
+            var disc = new CdRow { DiscId = 1, Tracks = 1, LegacyGenre = "Legacy", Genre = "Legacy" };
+            store.Tracks.Add(track);
+            store.Cds.Add(disc);
+            store.TracksByDisc.Add(1, new System.Collections.Generic.List<TrackRow> { track });
+
+            var source = new DigitalItem {
+                ItemId = 11, Path = @"X:\Synthetic\Fictional.flac", Subsong = 1,
+                Artist = "Example Artist", Title = "Fictional Cue Track",
+                DurationSeconds = 180, Genre = "Trance"
+            };
+            var one = new System.Collections.Generic.List<DigitalItem> { source };
+            store.ApplyLiveDigitalItems(one);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance" || store.ProjectedTrackGenreCount != 1 ||
+                store.ProjectedCdGenreCount != 1 ||
+                store.GetMatchesForTrack(1).Count != 1 ||
+                store.GetMatchesForTrack(1)[0].Subsong != 1)
+                throw new InvalidDataException("Known-duration virtual match failed production projection.");
+
+            // Same CUE row, unknown duration: retain likely evidence but do not
+            // carry over a projected genre or stale search text.
+            source.DurationSeconds = 0;
+            store.ApplyLiveDigitalItems(one);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy" ||
+                track.SearchText.Contains("trance") || store.ProjectedTrackGenreCount != 0)
+                throw new InvalidDataException("Unknown-duration virtual match projected a stale genre.");
+
+            // The old index accepted separator-only artist/title keys and could
+            // turn a missing Bridge identity into a strong virtual genre vote.
+            source.DurationSeconds = 180;
+            source.Artist = "";
+            store.ApplyLiveDigitalItems(one);
+            if (track.DigitalCount != 0 || track.GenreProjected ||
+                disc.GenreProjected || store.GetMatchesForTrack(1).Count != 0)
+                throw new InvalidDataException("Empty artist was treated as matching evidence.");
+
+            source.Artist = "Example Artist";
+            source.Title = "";
+            store.ApplyLiveDigitalItems(one);
+            if (track.DigitalCount != 0 || track.GenreProjected)
+                throw new InvalidDataException("Empty title was treated as matching evidence.");
+
+            source.Title = "Fictional Cue Track";
+            source.Artist = "!!!";
+            store.ApplyLiveDigitalItems(one);
+            if (track.DigitalCount != 0 || track.GenreProjected)
+                throw new InvalidDataException("Punctuation-only artist was treated as matching evidence.");
+
+            source.Artist = "Example Artist";
+            source.Title = "---";
+            store.ApplyLiveDigitalItems(one);
+            if (track.DigitalCount != 0 || track.GenreProjected)
+                throw new InvalidDataException("Punctuation-only title was treated as matching evidence.");
+
+            // Preserve the existing physical-source policy: exact identity can
+            // still be strong when physical duration is unavailable.
+            source.Title = "Fictional Cue Track";
+            source.Subsong = 0;
+            source.DurationSeconds = 0;
+            store.ApplyLiveDigitalItems(one);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance" || store.GetMatchesForTrack(1)[0].Subsong != 0)
+                throw new InvalidDataException("Physical exact-identity baseline regressed.");
+
+            // Two separate strong virtual segments cannot be counted as
+            // independent evidence for automatic track/CD genre projection.
+            source.Subsong = 1;
+            source.DurationSeconds = 180;
+            var second = new DigitalItem {
+                ItemId = 12, Path = source.Path, Subsong = 2,
+                Artist = source.Artist, Title = source.Title,
+                DurationSeconds = 180, Genre = "Trance"
+            };
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> { source, second });
+            if (track.StrongCount != 2 || track.Genre != "Legacy" ||
+                disc.Genre != "Legacy" || store.ProjectedTrackGenreCount != 0 ||
+                store.GetMatchesForTrack(1).Count != 2)
+                throw new InvalidDataException("Competing virtual segments projected genre.");
         }
 
         private static void Verify(CatalogCounts counts, long releases, long discs, long tracks, string stage)
