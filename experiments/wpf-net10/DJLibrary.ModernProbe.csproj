@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Experimental full-source build; production remains BuildOnly.cmd / .NET Framework. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <StartupObject>DJLibrary.Program</StartupObject>
+    <AssemblyName>DJLibrary.ModernProbe</AssemblyName>
+    <NoWarn>$(NoWarn);SYSLIB0014</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Link every actual production C# source file, not a reduced imitation. -->
+    <Compile Include="../../src/*.cs" Link="src/%(Filename)%(Extension)" />
+    <Compile Include="LegacyJsonCompat.cs" />
+  </ItemGroup>
+</Project>

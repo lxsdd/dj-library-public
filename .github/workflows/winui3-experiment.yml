@@ -1,0 +1,243 @@
+name: Experimental WinUI 3 catalog UX
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/winui3/**'
+      - 'experiments/shared/**'
+      - 'experiments/wpf-ab/**'
+      - 'experiments/synthetic-contract/**'
+      - '.github/workflows/winui3-experiment.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: winui3-spike-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  compile-prototype:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: experiments/winui3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Verify identical deterministic fixture/filter/sort contracts
+        shell: pwsh
+        run: |
+          dotnet run --project ../synthetic-contract/SyntheticContract.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Shared fixture contract failed' }
+      - name: Compile WPF .NET 10 reference UI with identical model source
+        shell: pwsh
+        run: |
+          dotnet build ../wpf-ab/DJLibrary.WpfAb.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'WPF A/B reference build failed' }
+      - name: Exercise actual WPF window and DataGrid with synthetic catalogs
+        shell: pwsh
+        run: |
+          $wpfReport = Join-Path $env:RUNNER_TEMP 'wpf-ab-compositor-report.txt'
+          $env:DJLIB_WPF_AB_SMOKE_REPORT = $wpfReport
+          $process = Start-Process dotnet -ArgumentList @('run','--project','../wpf-ab/DJLibrary.WpfAb.csproj','-c','Release','--no-build','--','--smoke') -PassThru
+          try {
+            if (-not $process.WaitForExit(90000)) { throw 'WPF visible-window smoke timed out after 90 seconds' }
+            if (Test-Path -LiteralPath $wpfReport) { Get-Content -LiteralPath $wpfReport }
+            if ($process.ExitCode -ne 0) { throw "WPF visible-window smoke failed with exit $($process.ExitCode)" }
+            if (-not (Test-Path -LiteralPath $wpfReport)) { throw 'WPF compositor smoke report missing' }
+            $txt = Get-Content -LiteralPath $wpfReport -Raw
+            if (-not $txt.StartsWith("PASS`n")) { throw 'WPF window compositor smoke did not pass' }
+            foreach ($n in @('1,345','15,000','54,129','100,000')) {
+              if (-not $txt.Contains("PASS $n synthetic")) { throw "WPF compositor report missing $n" }
+            }
+            if (-not $txt.Contains('KEYBOARD_FOCUS_OBSERVATION WPF baseline:')) { throw 'WPF keyboard focus comparison did not execute' }
+            if (-not $txt.Contains('REVERSE_TAB_OBSERVATION WPF baseline:')) { throw 'WPF reverse Tab gate did not execute' }
+            if (-not $txt.Contains('FOCUS_TRANSFER_OBSERVATION WPF baseline:')) { throw 'WPF explicit focus transfer test missing' }
+            if (-not $txt.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:')) {
+              throw 'WPF native DJ Library production-model runtime gate was not executed'
+            }
+            if (-not $txt.Contains('PASS WPF original BridgeSnapshotReader v3 TEMP:')) { throw 'WPF production Bridge v3 reader/UI gate missing' }
+            if (-not $txt.Contains('PASS WPF original CatalogService release/disc/track navigation:')) {
+              throw 'WPF real CatalogService release/disc/track navigation gate did not execute'
+            }
+            if (-not $txt.Contains('PASS WPF interactive TEMP CatalogService navigation controls:')) {
+              throw 'WPF Release/Disc selection event UI navigation did not run'
+            }
+            if (-not $txt.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files')) {
+              throw 'Original catalog CD metadata detail UI transition gate did not run in WPF'
+            }
+            if (-not $txt.Contains('PASS WPF read-only SQLite CatalogService.GetNativeTracks:')) {
+              throw 'WPF native WinSqlite GetNativeTracks read-only actual-database gate was not executed'
+            }
+          } finally {
+            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
+            $process.Dispose()
+          }
+      - name: Restore pinned WinUI 3 and TableView dependencies
+        shell: pwsh
+        run: |
+          dotnet restore DJLibrary.WinUiSpike.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw 'WinUI 3 restore failed' }
+      - name: Compile Windows App SDK / WinUI TableView prototype
+        shell: pwsh
+        run: |
+          dotnet build DJLibrary.WinUiSpike.csproj -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { throw 'WinUI 3 compile failed' }
+      - name: Launch real WinUI 3 window and verify synthetic TableView runtime
+        shell: pwsh
+        run: |
+          $report = Join-Path $env:RUNNER_TEMP 'winui3-smoke-report.txt'
+          $env:DJLIB_WINUI_SMOKE_REPORT = $report
+          $exe = Join-Path $PWD 'bin/Release/net10.0-windows10.0.19041.0/win-x64/DJLibrary.WinUiSpike.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "No unpackaged WinUI 3 executable at $exe" }
+          $p = Start-Process -FilePath $exe -ArgumentList '--smoke' -PassThru
+          try {
+            if (-not $p.WaitForExit(110000)) { throw 'WinUI 3 real window / TableView smoke timed out' }
+            if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
+            if ($p.ExitCode -ne 0) { throw "WinUI 3 runtime exited with $($p.ExitCode)" }
+            if (-not (Test-Path -LiteralPath $report)) {
+              throw 'WinUI 3 did not reach its OnLaunched smoke-report checkpoint'
+            }
+            $result = Get-Content -LiteralPath $report -Raw
+            if (-not $result.StartsWith("PASS`n")) {
+              throw 'WinUI 3 reported a synthetic TableView runtime failure'
+            }
+            foreach ($size in @('1,345','15,000','54,129','100,000')) {
+              if (-not $result.Contains("PASS $size synthetic")) {
+                throw "Missing actual WinUI runtime assertion for $size"
+              }
+            }
+            if (-not $result.Contains('PASS WinUI columns: in-memory JSON')) {
+              throw 'WinUI TableView column round-trip was not executed'
+            }
+            if (-not $result.Contains('PASS WinUI accessibility:')) {
+              throw 'WinUI TableView accessibility peer proof was not executed'
+            }
+            if (-not $result.Contains('PASS WinUI scrolling:')) {
+              throw 'WinUI TableView programmatic horizontal/vertical scroll was not executed'
+            }
+            if (-not $result.Contains('KEYBOARD_FOCUS_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI keyboard-focus diagnostic did not execute' }
+            if (-not $result.Contains('REVERSE_TAB_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI reverse Tab gate did not execute' }
+            if (-not $result.Contains('PASS WinUI boundary Shift+Tab:')) { throw 'WinUI boundary keyboard exit did not pass' }
+            if (-not $result.Contains('FOCUS_TRANSFER_OBSERVATION WinUI v1.5.1:')) { throw 'WinUI explicit focus transfer test missing' }
+            if (-not $result.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:')) {
+              throw 'WinUI native DJ Library production-model runtime gate was not executed'
+            }
+            if (-not $result.Contains('PASS WinUI original BridgeSnapshotReader v3 TEMP:')) { throw 'WinUI production Bridge v3 reader/UI gate missing' }
+            if (-not $result.Contains('PASS WinUI original CatalogService release/disc/track navigation:')) {
+              throw 'WinUI real CatalogService release/disc/track navigation gate did not execute'
+            }
+            if (-not $result.Contains('PASS WinUI interactive TEMP CatalogService navigation controls:')) {
+              throw 'WinUI Release/Disc selection event UI navigation did not run'
+            }
+            if (-not $result.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files')) {
+              throw 'Original catalog CD metadata detail UI transition gate did not run in WinUI'
+            }
+            if (-not $result.Contains('PASS WinUI read-only SQLite CatalogService.GetNativeTracks:')) {
+              throw 'WinUI actual WinSqlite read-only SQLite/native projection gate was not executed'
+            }
+          }
+          finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            $p.Dispose()
+          }
+      - name: Verify isolated self-contained WPF and WinUI folder deployment
+        shell: pwsh
+        run: |
+          # No artifact upload, no release, no real catalog/user settings.
+          # Only the runner's disposable temporary directories are used.
+          $ErrorActionPreference = 'Stop'
+          $wpfDir = Join-Path $env:RUNNER_TEMP 'djlib-wpf-ab-portable'
+          $winDir = Join-Path $env:RUNNER_TEMP 'djlib-winui-ab-portable'
+          dotnet publish ../wpf-ab/DJLibrary.WpfAb.csproj -c Release -r win-x64 --self-contained true -o $wpfDir --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'WPF self-contained publish failed' }
+          dotnet publish DJLibrary.WinUiSpike.csproj -c Release -r win-x64 --self-contained true -p:WindowsAppSDKSelfContained=true -p:PublishSingleFile=false -o $winDir --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'WinUI 3 self-contained publish failed' }
+          foreach ($pair in @(@($wpfDir,'DJLibrary.WpfAb.exe'),@($winDir,'DJLibrary.WinUiSpike.exe'))) {
+            $dir = $pair[0]
+            $exe = Join-Path $dir $pair[1]
+            if (-not (Test-Path -LiteralPath $exe)) { throw "No published executable: $exe" }
+            foreach ($name in @('coreclr.dll','hostfxr.dll')) {
+              if (-not (Test-Path -LiteralPath (Join-Path $dir $name))) {
+                throw "Missing self-contained .NET runtime dependency $name in $dir"
+              }
+            }
+            $count = @(Get-ChildItem -LiteralPath $dir -File -Recurse).Count
+            $bytes = (Get-ChildItem -LiteralPath $dir -File -Recurse | Measure-Object Length -Sum).Sum
+            Write-Host "PUBLISHED $($pair[1]): $count files, $([math]::Round($bytes / 1MB, 1)) MiB (not compressed download size)"
+          }
+          if (-not (Test-Path -LiteralPath (Join-Path $winDir 'WinUI.TableView.dll'))) {
+            throw 'Published WinUI 3 TableView assembly missing'
+          }
+          $wpfReport = Join-Path $env:RUNNER_TEMP 'wpf-published-smoke.txt'
+          $env:DJLIB_WPF_AB_SMOKE_REPORT = $wpfReport
+          $p = Start-Process -FilePath (Join-Path $wpfDir 'DJLibrary.WpfAb.exe') -ArgumentList '--smoke' -PassThru
+          try {
+            if (-not $p.WaitForExit(90000)) { throw 'Published WPF app timed out' }
+            if ($p.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $wpfReport)) {
+              throw "Published WPF runtime failed, exit $($p.ExitCode)"
+            }
+            $text = Get-Content -LiteralPath $wpfReport -Raw
+            if (-not $text.StartsWith("PASS`n") -or
+                -not $text.Contains('PASS 100,000 synthetic WPF') -or
+                -not $text.Contains('KEYBOARD_FOCUS_OBSERVATION WPF baseline:') -or
+                -not $text.Contains('REVERSE_TAB_OBSERVATION WPF baseline:') -or
+                -not $text.Contains('FOCUS_TRANSFER_OBSERVATION WPF baseline:') -or
+                -not $text.Contains('PASS WPF native DJ Library CatalogNativeTrack production model:') -or
+                -not $text.Contains('PASS WPF original BridgeSnapshotReader v3 TEMP:') -or
+                -not $text.Contains('PASS WPF original CatalogService release/disc/track navigation:') -or
+                -not $text.Contains('PASS WPF interactive TEMP CatalogService navigation controls:') -or
+                -not $text.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files') -or
+                -not $text.Contains('PASS WPF read-only SQLite CatalogService.GetNativeTracks:')) {
+              throw 'Published WPF failed real-window/SQLite/native-model runtime assertions'
+            }
+          }
+          finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            $p.Dispose()
+          }
+          $winReport = Join-Path $env:RUNNER_TEMP 'winui-published-smoke.txt'
+          $env:DJLIB_WINUI_SMOKE_REPORT = $winReport
+          $p = Start-Process -FilePath (Join-Path $winDir 'DJLibrary.WinUiSpike.exe') -ArgumentList '--smoke' -PassThru
+          try {
+            if (-not $p.WaitForExit(110000)) { throw 'Published WinUI 3 app timed out' }
+            if (Test-Path -LiteralPath $winReport) { Get-Content -LiteralPath $winReport }
+            if ($p.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $winReport)) {
+              throw "Published WinUI 3 runtime failed, exit $($p.ExitCode)"
+            }
+            $text = Get-Content -LiteralPath $winReport -Raw
+            if (-not $text.StartsWith("PASS`n") -or
+                -not $text.Contains('PASS 100,000 synthetic WinUI') -or
+                -not $text.Contains('PASS WinUI columns: in-memory JSON') -or
+                -not $text.Contains('PASS WinUI accessibility:') -or
+                -not $text.Contains('PASS WinUI scrolling:') -or
+                -not $text.Contains('KEYBOARD_FOCUS_OBSERVATION WinUI v1.5.1:') -or
+                -not $text.Contains('REVERSE_TAB_OBSERVATION WinUI v1.5.1:') -or
+                -not $text.Contains('PASS WinUI boundary Shift+Tab:') -or
+                -not $text.Contains('FOCUS_TRANSFER_OBSERVATION WinUI v1.5.1:') -or
+                -not $text.Contains('PASS WinUI native DJ Library CatalogNativeTrack production model:') -or
+                -not $text.Contains('PASS WinUI original BridgeSnapshotReader v3 TEMP:') -or
+                -not $text.Contains('PASS WinUI original CatalogService release/disc/track navigation:') -or
+                -not $text.Contains('PASS WinUI interactive TEMP CatalogService navigation controls:') -or
+                -not $text.Contains('stored TOC/CD-TEXT/CDX detail transitions; no production files') -or
+                -not $text.Contains('PASS WinUI read-only SQLite CatalogService.GetNativeTracks:')) {
+              throw 'Published WinUI 3 failed real-window/SQLite/native-model runtime assertions'
+            }
+          }
+          finally {
+            if (-not $p.HasExited) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+            $p.Dispose()
+          }
+          Write-Host 'PASS: same-runner folder-local self-contained startup and synthetic windows.'
+          Write-Host 'NOT TESTED: clean Windows 10/11 machine, physical touchpad, GPU composition scanout, UAC or product data.'
+      - name: Clarify qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'Shared contracts compiled; real WinUI HWND, TableView layout, selection and next compositor callback executed in synthetic runtime.'
+          Write-Host 'Rendering callback is not physical scanout; actual touchpad, DPI, accessibility, deployment and product GUI acceptance remain open.'
+          Write-Host 'No production catalog/DB access or migration authorized.'

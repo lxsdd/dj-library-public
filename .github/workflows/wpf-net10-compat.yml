@@ -1,0 +1,74 @@
+name: Experimental full DJ Library WPF .NET 10 compatibility
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/wpf-net10/**'
+      - '.github/workflows/wpf-net10-compat.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wpf-net10-compat-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  compatibility:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+      - name: Compile every production source with the modern Windows WPF SDK
+        shell: pwsh
+        run: |
+          dotnet build experiments/wpf-net10/DJLibrary.ModernProbe.csproj -c Release -p:RestoreLockedMode=false --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Modern WPF full-source compatibility build failed' }
+      - name: Verify isolated JSON compatibility with synthetic vectors
+        shell: pwsh
+        run: |
+          dotnet run --project experiments/wpf-net10/JsonCompatibilityProbe.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'JSON compatibility vectors failed' }
+      - name: Checkout pinned public native metadata engine
+        uses: actions/checkout@v4
+        with:
+          repository: lxsdd/dj-metadata-normalizer
+          ref: 365432ad8d6d0b80cc138c21e0d8fd8edca9e499
+          path: dj-metadata-normalizer
+          persist-credentials: false
+      - name: Build the same native metadata dependency as legacy CI
+        shell: pwsh
+        run: |
+          cmake -S dj-metadata-normalizer -B djmeta-build -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Native cmake configure failed' }
+          cmake --build djmeta-build --config Release --target djmeta_native
+          if ($LASTEXITCODE -ne 0) { throw 'Native metadata build failed' }
+      - name: Run real full-source synthetic compatibility self-test
+        shell: pwsh
+        run: |
+          $dir = 'experiments/wpf-net10/bin/Release/net10.0-windows/win-x64'
+          $exe = Join-Path $dir 'DJLibrary.ModernProbe.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "Missing full-source WPF output: $exe" }
+          Copy-Item djmeta-build/Release/djmeta_native.dll (Join-Path $dir 'djmeta_native.dll')
+          New-Item -ItemType Directory -Force -Path (Join-Path $dir 'rules') | Out-Null
+          Copy-Item dj-metadata-normalizer/rules/default-rules.json (Join-Path $dir 'rules/default-rules.json')
+          $p = Start-Process -FilePath (Resolve-Path $exe).Path -ArgumentList '--self-test-public' -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            $errorFile = Join-Path $dir 'SELF-TEST-ERROR.txt'
+            if (Test-Path $errorFile) { Get-Content $errorFile }
+            throw "Modern WPF synthetic test failed with exit code $($p.ExitCode)"
+          }
+          $report = Get-Content (Join-Path $dir 'SELF-TEST.txt') -Raw
+          if (-not $report.Contains('PASS_PUBLIC_CONTRACT')) { throw 'Modern WPF synthetic contract incomplete' }
+          Write-Host $report
+      - name: Qualification boundary
+        shell: pwsh
+        run: |
+          Write-Host 'Full-source compilation + synthetic self-test only; no installed Windows GUI, CD drive, native UI, or real catalog acceptance.'
+          Write-Host 'Legacy BuildOnly.cmd remains the production build; this workflow never packages or publishes a release.'

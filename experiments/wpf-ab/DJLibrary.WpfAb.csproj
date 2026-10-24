@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>DJLibrary.WpfAb</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../shared/SyntheticCatalog.cs" Link="SyntheticCatalog.cs" />
+    <Compile Include="../shared/SyntheticSelection.cs" Link="SyntheticSelection.cs" />
+    <!-- Exact, unmodified production DJ Library native SQLite-projection model. -->
+    <Compile Include="../../src/CatalogNativeModels.cs" Link="Production/CatalogNativeModels.cs" />
+    <Compile Include="../shared/NativeTrackProjection.cs" Link="Shared/NativeTrackProjection.cs" />
+    <!-- Original production native SQLite API and unchanged CatalogService SQL. -->
+    <Compile Include="../../src/WinSqlite.cs" Link="Production/WinSqlite.cs" />
+    <Compile Include="../../src/CatalogService.NativeProjection.cs" Link="Production/CatalogService.NativeProjection.cs" />
+    <Compile Include="../../src/CatalogService.cs" Link="Production/CatalogService.cs" />
+    <Compile Include="../../src/CatalogService.Interchange.cs" Link="Production/CatalogService.Interchange.cs" />
+    <Compile Include="../../src/CatalogModels.cs" Link="Production/CatalogModels.cs" />
+    <Compile Include="../../src/BridgeSnapshot.cs" Link="Production/BridgeSnapshot.cs" />
+    <Compile Include="../shared/BridgeV3Fixture.cs" Link="Shared/BridgeV3Fixture.cs" />
+    <Compile Include="../../src/CdxCompatibility.cs" Link="Production/CdxCompatibility.cs" />
+    <!-- Isolated EXPERIMENT-only legacy JSON shim; never replace production serializer silently. -->
+    <Compile Include="../wpf-net10/LegacyJsonCompat.cs" Link="Experimental/LegacyJsonCompat.cs" />
+    <!-- Test-only disposable SQLite path, fake UI formatting and forbidden user-profile access. -->
+    <Compile Include="../shared/NativeSqliteFixture.cs" Link="Shared/NativeSqliteFixture.cs" />
+    <Compile Include="../shared/CatalogNavigationFixture.cs" Link="Shared/CatalogNavigationFixture.cs" />
+    <Compile Include="../shared/MetadataDependencyTypes.cs" Link="Experimental/MetadataDependencyTypes.cs" />
+  </ItemGroup>
+</Project>

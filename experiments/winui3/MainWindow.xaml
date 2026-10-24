@@ -1,0 +1,65 @@
+<Window
+    x:Class="DJLibrary.WinUiSpike.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:tv="using:WinUI.TableView"
+    xmlns:local="using:DJLibrary.WinUiSpike"
+    Title="DJ Library — WinUI 3 experimental workspace">
+    <Grid Padding="16" RowSpacing="3">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Spacing="4">
+            <TextBlock Text="DJ Library / WinUI 3 comparison" FontSize="24" FontWeight="SemiBold" />
+            <TextBlock Text="Only synthetic tracks or disposable TEMP SQLite fixtures. No existing catalog, music files, bridge or rekordbox database is opened."
+                       TextWrapping="Wrap" />
+        </StackPanel>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <ComboBox x:Name="SizeSelector" Header="Synthetic tracks" SelectedIndex="2">
+                <ComboBoxItem Content="1,345" />
+                <ComboBoxItem Content="15,000" />
+                <ComboBoxItem Content="54,129" />
+                <ComboBoxItem Content="100,000" />
+            </ComboBox>
+            <Button Content="Generate / load" Click="Load_Click" VerticalAlignment="Bottom" />
+            <TextBox x:Name="SearchBox" Header="Artist or title" Width="260"
+                     PlaceholderText="Case-insensitive match" />
+            <Button Content="Apply filter" Click="Filter_Click" VerticalAlignment="Bottom" />
+            <Button Content="Sort by title" Click="Sort_Click" VerticalAlignment="Bottom" />
+            <Button Content="Show all" Click="Clear_Click" VerticalAlignment="Bottom" />
+            <Button x:Name="FocusEscapeTarget" Content="Focus escape target" VerticalAlignment="Bottom" />
+        </StackPanel>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="TEMP SQLite navigation" VerticalAlignment="Center" />
+            <Button Content="Load demo" Click="NavigationLoad_Click" VerticalAlignment="Center" />
+            <Button Content="Releases" Click="NavigationReleases_Click" VerticalAlignment="Center" />
+            <ComboBox x:Name="NavigationReleaseSelector" Header="Release" Width="180"
+                      DisplayMemberPath="Title" SelectionChanged="NavigationRelease_Changed" />
+            <ComboBox x:Name="NavigationDiscSelector" Header="Disc" Width="150"
+                      DisplayMemberPath="Title" SelectionChanged="NavigationDisc_Changed" />
+        </StackPanel>
+        <InfoBar Grid.Row="3" IsOpen="True" IsClosable="False"
+                 Severity="Informational" Title="Comparable synthetic model operations"
+                 Message="Both UI prototypes use the same generator/filter/sort source. Elapsed times exclude visible frame rendering." />
+        <local:KeyboardBoundaryTableView Grid.Row="4" x:Name="TracksGrid" AutoGenerateColumns="False" CanCopy="True" CanPaste="False"
+                      AutomationProperties.Name="DJ Library synthetic track table"
+                      AutomationProperties.HelpText="Read-only synthetic track results. Filter and sort using the controls above."
+                      IsReadOnly="True" SelectionMode="Extended">
+            <tv:TableView.Columns>
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Identity" Binding="{Binding Identity}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Artist" Binding="{Binding Artist}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Title" Binding="{Binding Title}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Genre" Binding="{Binding Genre}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Year" Binding="{Binding Year}" />
+                <tv:TableViewTextColumn Width="250" MinWidth="250" Header="Duration" Binding="{Binding Duration}" />
+            </tv:TableView.Columns>
+        </local:KeyboardBoundaryTableView>
+        <TextBlock Grid.Row="5" x:Name="StatusText" TextWrapping="Wrap"
+                   Text="No synthetic data loaded. Production DJ Library remains unchanged." />
+    </Grid>
+</Window>
