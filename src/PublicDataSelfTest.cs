@@ -195,28 +195,40 @@ namespace DJLibrary
             // turn a missing Bridge identity into a strong virtual genre vote.
             source.DurationSeconds = 180;
             source.Artist = "";
+            track.Artist = "";
             store.ApplyLiveDigitalItems(one);
             if (track.DigitalCount != 0 || track.GenreProjected ||
                 disc.GenreProjected || store.GetMatchesForTrack(1).Count != 0)
-                throw new InvalidDataException("Empty artist was treated as matching evidence.");
+                throw new InvalidDataException("Two missing artists were treated as exact identity.");
 
+            track.Artist = "Example Artist";
             source.Artist = "Example Artist";
             source.Title = "";
+            track.Title = "";
+            track.DisplayTitle = "";
             store.ApplyLiveDigitalItems(one);
             if (track.DigitalCount != 0 || track.GenreProjected)
-                throw new InvalidDataException("Empty title was treated as matching evidence.");
+                throw new InvalidDataException("Two missing titles were treated as exact identity.");
+            track.Title = "Fictional Cue Track";
+            track.DisplayTitle = "Fictional Cue Track";
 
             source.Title = "Fictional Cue Track";
             source.Artist = "!!!";
+            track.Artist = "!!!";
             store.ApplyLiveDigitalItems(one);
             if (track.DigitalCount != 0 || track.GenreProjected)
-                throw new InvalidDataException("Punctuation-only artist was treated as matching evidence.");
+                throw new InvalidDataException("Punctuation-only artists were treated as exact identity.");
 
+            track.Artist = "Example Artist";
             source.Artist = "Example Artist";
             source.Title = "---";
+            track.Title = "---";
+            track.DisplayTitle = "---";
             store.ApplyLiveDigitalItems(one);
             if (track.DigitalCount != 0 || track.GenreProjected)
-                throw new InvalidDataException("Punctuation-only title was treated as matching evidence.");
+                throw new InvalidDataException("Punctuation-only titles were treated as exact identity.");
+            track.Title = "Fictional Cue Track";
+            track.DisplayTitle = "Fictional Cue Track";
 
             // Preserve the existing physical-source policy: exact identity can
             // still be strong when physical duration is unavailable.
