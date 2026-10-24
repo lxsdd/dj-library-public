@@ -1,0 +1,7 @@
+{
+  "source_repo": "lxsdd/dev-infrastructure-public",
+  "source_commit": "5fe7284520b607c6fb7d781ca94999bf0d4407ab",
+  "source_path": "shared/ci/publication_guard.py",
+  "source_git_blob_sha1": "d096e65254e7d6e99f8254c31743e60e9b94062f",
+  "license_and_scope": "Source-only reusable CI scanner; does not authorize binary publication; product-specific release and privacy guards remain in force"
+}

@@ -29,6 +29,13 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Guard source-only publication and exercise negative mutations
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          & python scripts/verify-public-artifact-hold.py
+          if($LASTEXITCODE -ne 0){throw 'DJ Library publication gate failed'}
+
       - name: Checkout unchanged original Bridge v3 publisher source
         uses: actions/checkout@v5
         with:
