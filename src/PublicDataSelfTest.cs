@@ -326,6 +326,64 @@ namespace DJLibrary
                 disc.Genre != "Trance" || store.GetMatchesForTrack(1)[0].Subsong != 0)
                 throw new InvalidDataException("Physical exact-identity baseline regressed.");
 
+            // Zero is intentionally an unknown physical duration; invalid
+            // negative/nonfinite numbers instead fail closed, even for an
+            // identical physical artist/title and an otherwise matching CD.
+            double[] invalidDurations = {
+                Double.NaN, Double.PositiveInfinity, Double.NegativeInfinity, -1.0
+            };
+            foreach (double bad in invalidDurations)
+            {
+                source.DurationSeconds = bad;
+                track.DurationSeconds = 180;
+                store.ApplyLiveDigitalItems(one);
+                if (track.StrongCount != 0 || track.DigitalCount != 1 ||
+                    track.LikelyCount != 1 || track.GenreProjected ||
+                    disc.GenreProjected || store.ProjectedTrackGenreCount != 0 ||
+                    track.Genre != "Legacy" || disc.Genre != "Legacy")
+                    throw new InvalidDataException("Invalid Bridge duration granted physical GENRE evidence.");
+
+                source.DurationSeconds = 180;
+                track.DurationSeconds = bad;
+                store.ApplyLiveDigitalItems(one);
+                if (track.StrongCount != 0 || track.DigitalCount != 1 ||
+                    track.LikelyCount != 1 || track.GenreProjected ||
+                    disc.GenreProjected || track.Genre != "Legacy" ||
+                    disc.Genre != "Legacy")
+                    throw new InvalidDataException("Invalid catalog duration granted physical GENRE evidence.");
+            }
+
+            // Two positive infinities subtract to NaN: explicitly verify that
+            // the old NaN comparison loophole can no longer promote STRONG.
+            source.DurationSeconds = Double.PositiveInfinity;
+            track.DurationSeconds = Double.PositiveInfinity;
+            store.ApplyLiveDigitalItems(one);
+            if (track.StrongCount != 0 || track.GenreProjected ||
+                disc.GenreProjected || track.Genre != "Legacy")
+                throw new InvalidDataException("Infinity-Infinity bypassed the duration conflict firewall.");
+
+            // Keep historical physical unknown-duration semantics (zero),
+            // without accidentally allowing unknown virtual-CUE durations.
+            source.DurationSeconds = 0;
+            track.DurationSeconds = 0;
+            store.ApplyLiveDigitalItems(one);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Valid unknown physical duration was over-rejected.");
+            source.Subsong = 1;
+            store.ApplyLiveDigitalItems(one);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected)
+                throw new InvalidDataException("Unknown virtual duration incorrectly projected GENRE.");
+
+            // Restore a genuinely close, measured virtual source baseline.
+            source.DurationSeconds = 180;
+            track.DurationSeconds = 180;
+            store.ApplyLiveDigitalItems(one);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Valid measured virtual duration was over-rejected.");
+
             // Two separate strong virtual segments cannot be counted as
             // independent evidence for automatic track/CD genre projection.
             source.Subsong = 1;
