@@ -521,6 +521,59 @@ namespace DJLibrary
             if (track.StrongCount != 0 || track.LikelyCount != 1 ||
                 track.GenreProjected || disc.GenreProjected)
                 throw new InvalidDataException("Remix substring incorrectly satisfied Mix version.");
+
+            // An unversioned CD cannot inherit GENRE from an explicitly marked
+            // digital remix merely because the displayed base-title is equal.
+            track.Version = "";
+            track.Title = track.DisplayTitle = "Fictional Track";
+            item.Title = item.OriginalTitle = "Fictional Track";
+            item.RemixedBy = "Radio Edit";
+            item.Subsong = 0;
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.DigitalCount != 1 || store.GetMatchesForTrack(1).Count != 1 ||
+                store.GetMatchesForTrack(1)[0].Level != "likely" ||
+                track.GenreProjected || disc.GenreProjected ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy")
+                throw new InvalidDataException("Unversioned CD inherited an explicitly different Bridge remix GENRE.");
+
+            // Ordinary unversioned physical sources retain matching/projection.
+            item.RemixedBy = "";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance" || store.ProjectedTrackGenreCount != 1)
+                throw new InvalidDataException("Unversioned physical baseline was over-rejected.");
+
+            // Punctuation-only Bridge labels are not valid evidence of a mix.
+            item.RemixedBy = "!!!";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Empty normalized Bridge remix blocked an exact physical title.");
+
+            // CD display names the full explicit remix: STRONG remains valid.
+            track.DisplayTitle = "Fictional Track (Radio Edit)";
+            item.Title = track.DisplayTitle;
+            item.RemixedBy = "Radio Edit";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Exact CD displayed remix was over-rejected.");
+
+            // A matching display must not override contradictory OriginalTitle.
+            item.OriginalTitle = "Entirely Different Track";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.DigitalCount != 1 || store.GetMatchesForTrack(1).Count != 1 ||
+                track.GenreProjected || disc.GenreProjected ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy")
+                throw new InvalidDataException("Contradictory Bridge OriginalTitle overrode exact CD display.");
+
+            item.OriginalTitle = "Fictional Track";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Restored original base title failed to requalify a verified mix.");
         }
 
         private static void VerifyLiveDigitalLookupIndex()
