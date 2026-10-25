@@ -14,6 +14,9 @@ namespace DJLibrary
             Directory.CreateDirectory(dir);
             try
             {
+                // Exercise the production Bridge V3 reader, not a duplicate fixture parser.
+                // All state/payload/profile replay and positive recovery probes use disposable files.
+                BridgeSnapshotReader.ValidateSchemaV3Contract();
                 string path = Path.Combine(dir, "synthetic.sqlite");
                 string exported = Path.Combine(dir, "local-export.sqlite");
                 using (CatalogService catalog = CatalogService.CreateEmptyForTesting(path))
