@@ -116,6 +116,7 @@ namespace DJLibrary
                 }
                 VerifyCorruptPrimarySettingsBackupPreserved(dir);
                 VerifyCatalogReloadRollback(dir);
+                VerifyNumericEditorSafety();
                 // Virtual foobar CUE/subsong rows must remain searchable, yet
                 // must never be promoted to "strong" without a verified
                 // segment-vs-CD duration. This is a synthetic, no-media test.
@@ -240,6 +241,51 @@ namespace DJLibrary
                 store.GetMatchesForTrack(9002).Count != 0)
                 throw new InvalidDataException("Bridge generation replacement retained stale live matches.");
             return "PASS_NATIVE_PUBLISHER_V3_54129_LIVE_GENRE_AND_CUE";
+        }
+
+        // Exercise the exact formatter/parser and BPM gate used by the real
+        // Track Editor, without a user catalog or mutable host UI input.
+        private static void VerifyNumericEditorSafety()
+        {
+            double parsed;
+            if (!UiHelpers.TryParseDuration("", out parsed) || parsed != 0 ||
+                !UiHelpers.TryParseDuration("2:05", out parsed) || parsed != 125 ||
+                !UiHelpers.TryParseDuration("1:02:03", out parsed) || parsed != 3723 ||
+                !UiHelpers.TryParseDuration("75:00", out parsed) || parsed != 4500 ||
+                !UiHelpers.TryParseDuration("125.5", out parsed) || parsed != 125.5 ||
+                !UiHelpers.TryParseDuration("596523:14:07", out parsed) ||
+                parsed != 2147483647)
+                throw new InvalidDataException("Finite/unknown duration editor baseline regressed.");
+
+            string[] badDurations = {
+                "NaN", "Infinity", "-Infinity", "-1", "2147483648",
+                "1e308", "596524:00:00", "596523:59:59",
+                "2147483647:00", "1:60:00", "1:00:60", "-1:00:00",
+                "1:02:60", "broken"
+            };
+            foreach (string bad in badDurations)
+            {
+                parsed = -99;
+                if (UiHelpers.TryParseDuration(bad, out parsed))
+                    throw new InvalidDataException("Invalid/overflowed Track Editor duration was accepted: " + bad);
+            }
+            if (!UiHelpers.IsFiniteNonNegative(0) ||
+                !UiHelpers.IsFiniteNonNegative(128.5) ||
+                UiHelpers.IsFiniteNonNegative(Double.NaN) ||
+                UiHelpers.IsFiniteNonNegative(Double.PositiveInfinity) ||
+                UiHelpers.IsFiniteNonNegative(Double.NegativeInfinity) ||
+                UiHelpers.IsFiniteNonNegative(-1))
+                throw new InvalidDataException("BPM/Duration numeric finiteness gate regressed.");
+
+            if (UiHelpers.FormatDuration(125) != "2:05" ||
+                UiHelpers.FormatDuration(3600) != "1:00:00" ||
+                UiHelpers.FormatDuration(0) != "—" ||
+                UiHelpers.FormatDuration(-1) != "—" ||
+                UiHelpers.FormatDuration(Double.NaN) != "—" ||
+                UiHelpers.FormatDuration(Double.PositiveInfinity) != "—" ||
+                UiHelpers.FormatDuration(Double.NegativeInfinity) != "—" ||
+                UiHelpers.FormatDuration(2147483648.0) != "—")
+                throw new InvalidDataException("Corrupt/out-of-range duration leaked to WPF display.");
         }
 
         // Private disposable SQLite/gzip fixtures; never inspect owner data.

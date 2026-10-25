@@ -899,7 +899,9 @@ namespace DJLibrary
             du.ToolTip = "For example 7:35 or 1:02:03; seconds are also accepted. Display is formatted compactly automatically.";
             bool ok=FormHelpers.Show(owner,title,g,null); if(!ok) return false;
             int pos=x.Position; double bp=0, dur=0;
-            if(bpm.Text.Trim().Length>0 && !Double.TryParse(bpm.Text,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.CurrentCulture,out bp)) { MessageBox.Show(owner,"BPM ist invalid."); return false; }
+            if(bpm.Text.Trim().Length>0 &&
+                (!Double.TryParse(bpm.Text,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.CurrentCulture,out bp) ||
+                 !UiHelpers.IsFiniteNonNegative(bp))) { MessageBox.Show(owner,"BPM must be a finite, non-negative number."); return false; }
             if(!UiHelpers.TryParseDuration(du.Text,out dur)) { MessageBox.Show(owner,"Duration is invalid. Examples: 7:35, 1:02:03, or seconds."); return false; }
             x.Position=pos; x.Artist=a.Text.Trim(); x.Title=t.Text.Trim(); x.Version=v.Text.Trim(); x.ReleaseDate=d.Text.Trim(); x.Genre=ge.Text.Trim(); x.Bpm=Math.Max(0,bp); x.DurationSeconds=Math.Max(0,dur); return true;
         }

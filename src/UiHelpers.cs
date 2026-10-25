@@ -29,9 +29,18 @@ namespace DJLibrary
 
     public static class UiHelpers
     {
+        // The Track Editor and grid share a single finite/non-negative
+        // contract. In particular, Double.TryParse accepts NaN/Infinity in
+        // some cultures, and Math.Max(0, NaN) does not sanitize user input.
+        public static bool IsFiniteNonNegative(double value)
+        {
+            return !Double.IsNaN(value) && !Double.IsInfinity(value) && value >= 0;
+        }
+
         public static string FormatDuration(double seconds)
         {
-            if (seconds <= 0) return "—";
+            if (!IsFiniteNonNegative(seconds) || seconds == 0 ||
+                seconds > Int32.MaxValue) return "—";
             int total = (int)Math.Round(seconds);
             int h = total / 3600;
             int m = (total % 3600) / 60;
@@ -49,23 +58,28 @@ namespace DJLibrary
             int h = 0, m = 0, s = 0;
             if (parts.Length == 3)
             {
-                if (!Int32.TryParse(parts[0], out h) || !Int32.TryParse(parts[1], out m) || !Int32.TryParse(parts[2], out s)) return false;
+                if (!Int32.TryParse(parts[0], out h) || !Int32.TryParse(parts[1], out m) ||
+                    !Int32.TryParse(parts[2], out s)) return false;
                 if (h < 0 || m < 0 || m > 59 || s < 0 || s > 59) return false;
-                seconds = h * 3600 + m * 60 + s;
+                long duration = (long)h * 3600 + (long)m * 60 + s;
+                if (duration > Int32.MaxValue) return false;
+                seconds = duration;
                 return true;
             }
             if (parts.Length == 2)
             {
                 if (!Int32.TryParse(parts[0], out m) || !Int32.TryParse(parts[1], out s)) return false;
                 if (m < 0 || s < 0 || s > 59) return false;
-                seconds = m * 60 + s;
+                long duration = (long)m * 60 + s;
+                if (duration > Int32.MaxValue) return false;
+                seconds = duration;
                 return true;
             }
 
             double raw;
             if (!Double.TryParse(value, NumberStyles.Float, CultureInfo.CurrentCulture, out raw) &&
                 !Double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out raw)) return false;
-            if (raw < 0) return false;
+            if (!IsFiniteNonNegative(raw) || raw > Int32.MaxValue) return false;
             seconds = raw;
             return true;
         }
