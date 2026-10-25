@@ -574,6 +574,74 @@ namespace DJLibrary
             if (track.StrongCount != 1 || track.Genre != "Trance" ||
                 disc.Genre != "Trance")
                 throw new InvalidDataException("Restored original base title failed to requalify a verified mix.");
+
+            // NFC and decomposed canonical equivalents must work through the
+            // actual Bridge candidate index and STRONG/GENRE path, not merely
+            // through a helper string comparison.
+            track.Artist = "Björk";
+            item.Artist = "Bjo\u0308rk";
+            track.Title = track.DisplayTitle = "Jóga";
+            item.Title = item.OriginalTitle = "Jo\u0301ga";
+            track.Version = "";
+            item.RemixedBy = "";
+            item.Subsong = 1;
+            item.DurationSeconds = track.DurationSeconds = 180;
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.DigitalCount != 1 ||
+                track.Genre != "Trance" || disc.Genre != "Trance" ||
+                store.GetMatchesForTrack(1).Count != 1)
+                throw new InvalidDataException("Decomposed Unicode Bjork/Joga lost virtual STRONG/GENRE.");
+
+            // Reverse the source spellings, including an accented mix label.
+            track.Artist = "Bjo\u0308rk";
+            item.Artist = "Björk";
+            track.Title = "Jo\u0301ga";
+            track.DisplayTitle = "Another display";
+            track.Version = "Remíx";
+            item.Title = "Other display";
+            item.OriginalTitle = "Jóga";
+            item.RemixedBy = "Remi\u0301x";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance" || store.ProjectedTrackGenreCount != 1)
+                throw new InvalidDataException("Composed/decomposed structured remix identity regressed.");
+
+            // Truly distinct accents are not identical, even when the other
+            // fields and audio duration match exactly.
+            track.Version = "";
+            track.Artist = item.Artist = "Björk";
+            track.Title = track.DisplayTitle = "Joga";
+            item.Title = item.OriginalTitle = "Jóga";
+            item.RemixedBy = "";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.DigitalCount != 0 || track.StrongCount != 0 ||
+                track.GenreProjected || disc.GenreProjected ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy")
+                throw new InvalidDataException("Distinct accented title was promoted to STRONG GENRE.");
+
+            // Q + dot-below has no NFC precomposed form. Losing the combining
+            // mark would promote a different title to automatic GENRE.
+            track.Title = track.DisplayTitle = "Qa";
+            item.Title = item.OriginalTitle = "Q\u0323a";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.DigitalCount != 0 ||
+                track.GenreProjected || disc.GenreProjected)
+                throw new InvalidDataException("Noncomposable combining mark was silently erased.");
+
+            track.Title = track.DisplayTitle = "Q\u0323a";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Matching noncomposable Unicode mark was over-rejected.");
+
+            // Invalid UTF-16 surrogate input is never auto-GENRE evidence,
+            // even when both source strings carry the same invalid bytes.
+            track.Artist = item.Artist = "Broken \uD800";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.DigitalCount != 0 ||
+                track.GenreProjected || disc.GenreProjected ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy")
+                throw new InvalidDataException("Malformed surrogate text projected GENRE.");
         }
 
         private static void VerifyLiveDigitalLookupIndex()
