@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
 
@@ -19,6 +20,8 @@ namespace DJLibrary
         public int VerifiedItemCount { get; set; }
         public string LastChangeUtc { get; set; }
         public string DirectoryPath { get; set; }
+        public string StateImageSha256 { get; set; }
+        public string ItemImageSha256 { get; set; }
         public string Error { get; set; }
         public string SourceId { get; set; }
         public string SourceName { get; set; }
@@ -110,11 +113,17 @@ namespace DJLibrary
             {
                 byte[] stateBefore = File.ReadAllBytes(statePath);
                 s = ParseStateBytes(stateBefore, directory);
+                s.StateImageSha256 = Sha256Bytes(stateBefore);
                 if (!s.Compatible || !s.Complete) return s;
                 if (!File.Exists(itemPath)) throw new InvalidDataException("bridge-state.tsv ist vollständig, aber digital-items.tsv.gz fehlt.");
                 if (verifyItems)
                 {
+                    string itemHashBefore = Sha256File(itemPath);
                     int count = VerifyItems(itemPath, s.SchemaVersion);
+                    string itemHashAfter = Sha256File(itemPath);
+                    if (!String.Equals(itemHashBefore, itemHashAfter, StringComparison.Ordinal))
+                        throw new InvalidDataException("Bridge item payload changed during verification.");
+                    s.ItemImageSha256 = itemHashAfter;
                     s.VerifiedItemCount = count;
                     if (count != s.DeclaredItemCount) throw new InvalidDataException("Bridge item_count=" + s.DeclaredItemCount + ", Snapshot=" + count + ".");
                     byte[] stateAfter = File.ReadAllBytes(statePath);
@@ -135,9 +144,19 @@ namespace DJLibrary
         {
             if (expected == null || !expected.Present || !expected.Complete || !expected.Compatible || !String.IsNullOrEmpty(expected.Error))
                 throw new InvalidDataException("Bridge-Snapshot ist nicht autoritativ.");
+            if (String.IsNullOrWhiteSpace(directory) || String.IsNullOrWhiteSpace(expected.DirectoryPath) ||
+                !String.Equals(Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    Path.GetFullPath(expected.DirectoryPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Bridge snapshot directory differs from the inspected profile.");
+            if (String.IsNullOrWhiteSpace(expected.StateImageSha256) || String.IsNullOrWhiteSpace(expected.ItemImageSha256))
+                throw new InvalidDataException("Bridge snapshot must be fully verified before loading.");
             string statePath = Path.Combine(directory, "bridge-state.tsv");
             string itemPath = Path.Combine(directory, "digital-items.tsv.gz");
             byte[] stateBefore = File.ReadAllBytes(statePath);
+            if (!String.Equals(Sha256Bytes(stateBefore), expected.StateImageSha256, StringComparison.Ordinal) ||
+                !String.Equals(Sha256File(itemPath), expected.ItemImageSha256, StringComparison.Ordinal))
+                throw new InvalidDataException("Bridge state or payload changed after inspection; stale snapshot rejected.");
             BridgeSnapshotStatus actual = ParseStateBytes(stateBefore, directory);
             if (!actual.Compatible || !actual.Complete || !String.IsNullOrEmpty(actual.Error) ||
                 actual.SchemaVersion != expected.SchemaVersion || actual.Generation != expected.Generation || actual.DeclaredItemCount != expected.DeclaredItemCount ||
@@ -174,9 +193,25 @@ namespace DJLibrary
                 }
             }
             byte[] stateAfter = File.ReadAllBytes(statePath);
-            if (!SameBytes(stateBefore, stateAfter)) throw new InvalidDataException("Bridge-Generation änderte sich während des Ladens; vorheriger Stand bleibt aktiv.");
+            if (!SameBytes(stateBefore, stateAfter) ||
+                !String.Equals(Sha256Bytes(stateAfter), expected.StateImageSha256, StringComparison.Ordinal) ||
+                !String.Equals(Sha256File(itemPath), expected.ItemImageSha256, StringComparison.Ordinal))
+                throw new InvalidDataException("Bridge state or payload changed while loading; snapshot rejected.");
             if (items.Count != expected.DeclaredItemCount) throw new InvalidDataException("Bridge item_count änderte sich während des Ladens.");
             return items;
+        }
+
+        private static string Sha256Bytes(byte[] bytes)
+        {
+            using (SHA256 sha = SHA256.Create())
+                return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "");
+        }
+
+        private static string Sha256File(string path)
+        {
+            using (SHA256 sha = SHA256.Create())
+            using (FileStream stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "");
         }
 
         public static void ValidateSchemaV3Contract()
@@ -225,6 +260,41 @@ namespace DJLibrary
                     items[0].Title != "Title" || items[0].Genre != "House" || items[0].Fingerprint != fields[23] ||
                     items[0].MetadataVectorsJson != fields[25])
                     throw new InvalidOperationException("Bridge schema-v3 row projection self-test failed.");
+
+                // Real native Bridge state and compressed bytes are one inspected image.
+                // A different profile, a probe-only status or a same-generation payload
+                // replacement must not be accepted by the production reader.
+                AssertStaleV3Rejected(directory, Inspect(directory, false), "probe-only load");
+                string otherProfile = Path.Combine(directory, "other-profile");
+                Directory.CreateDirectory(otherProfile);
+                File.Copy(statePath, Path.Combine(otherProfile, "bridge-state.tsv"));
+                File.Copy(itemPath, Path.Combine(otherProfile, "digital-items.tsv.gz"));
+                AssertStaleV3Rejected(otherProfile, status, "cross-profile status replay");
+                BridgeSnapshotStatus otherStatus = Inspect(otherProfile, true);
+                if (!otherStatus.Compatible || LoadItems(otherProfile, otherStatus).Count != 1)
+                    throw new InvalidOperationException("Valid independently inspected profile was rejected.");
+
+                fields[4] = "Altered without generation change";
+                WriteSyntheticV3Rows(itemPath, fields, false);
+                AssertStaleV3Rejected(directory, status, "same-generation gzip replacement");
+                BridgeSnapshotStatus changedPayload = Inspect(directory, true);
+                if (!changedPayload.Compatible ||
+                    LoadItems(directory, changedPayload)[0].Title != fields[4])
+                    throw new InvalidOperationException("Freshly inspected replacement payload was rejected.");
+                fields[4] = "Title";
+                WriteSyntheticV3Rows(itemPath, fields, false);
+                status = Inspect(directory, true);
+                string changedState = state.Replace("source_name\\tSchema v3 self-test", "source_name\\tChanged profile label");
+                if (changedState == state) throw new InvalidOperationException("State mutation anchor missing.");
+                File.WriteAllText(statePath, changedState, new UTF8Encoding(false));
+                AssertStaleV3Rejected(directory, status, "same-generation state metadata replacement");
+                BridgeSnapshotStatus changedStateStatus = Inspect(directory, true);
+                if (!changedStateStatus.Compatible || LoadItems(directory, changedStateStatus).Count != 1)
+                    throw new InvalidOperationException("Freshly inspected state metadata was rejected.");
+                File.WriteAllText(statePath, state, new UTF8Encoding(false));
+                status = Inspect(directory, true);
+                if (!status.Compatible || LoadItems(directory, status).Count != 1)
+                    throw new InvalidOperationException("Original producer snapshot did not recover.");
 
                 // Real Bridge-V3 producer emits raw BPM tag values. They may
                 // contain multiple values, invalid text or floating-point
@@ -311,8 +381,9 @@ namespace DJLibrary
                 fields[24] = "{}";
                 fields[25] = "[{\"name\":\"ARTIST\",\"values\":[\"Artist\",\"Guest\"]}]";
                 WriteSyntheticV3Rows(itemPath, fields, false);
-                if (!Inspect(directory, true).Compatible ||
-                    LoadItems(directory, status).Count != 1)
+                BridgeSnapshotStatus recovered = Inspect(directory, true);
+                if (!recovered.Compatible ||
+                    LoadItems(directory, recovered).Count != 1)
                     throw new InvalidOperationException("Recovered Bridge-V3 fixture failed to become authoritative.");
             }
             finally
@@ -332,6 +403,14 @@ namespace DJLibrary
                 sw.WriteLine(line);
                 if (repeat) sw.WriteLine(line);
             }
+        }
+
+        private static void AssertStaleV3Rejected(string directory, BridgeSnapshotStatus status, string label)
+        {
+            bool rejected = false;
+            try { LoadItems(directory, status); }
+            catch (InvalidDataException) { rejected = true; }
+            if (!rejected) throw new InvalidOperationException("Stale Bridge snapshot was accepted: " + label);
         }
 
         private static void AssertRejectedV3Snapshot(string directory, BridgeSnapshotStatus original)
