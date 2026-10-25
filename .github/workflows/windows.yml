@@ -36,6 +36,36 @@ jobs:
           & python scripts/verify-public-artifact-hold.py
           if($LASTEXITCODE -ne 0){throw 'DJ Library publication gate failed'}
 
+      - name: Verify shared WPF implementation pin and negative drift contract
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $pin=Get-Content -LiteralPath 'src/SHARED_WPF.pin.json' -Raw | ConvertFrom-Json
+          if ($pin.source_repo -cne 'lxsdd/dev-infrastructure-public' -or
+              $pin.source_commit -cne 'e3f97bf4b2cbad054e230054f520007e907c8cd8' -or
+              $pin.source_path -cne 'shared/wpf/HorizontalScrollSupport.cs' -or
+              $pin.source_git_blob_sha1 -cne '23046d3df6b6490ba31576ec5b46859704cf6a17' -or
+              $pin.legacy_api -cne 'DJLibrary.HorizontalScrollSupport') {
+            throw 'Shared WPF provenance pin diverged from qualified MyTagSync and public owner'
+          }
+          $source='src/SharedHorizontalScrollSupport.cs'
+          $actual=(& git hash-object --path $source $source).Trim()
+          if($LASTEXITCODE -ne 0 -or $actual -cne $pin.source_git_blob_sha1) {
+            throw ('Shared WPF source is not the exact pinned canonical Git blob: ' + $actual)
+          }
+          $negative=Join-Path $env:RUNNER_TEMP ('shared-wpf-negative-' + $env:GITHUB_RUN_ID + '.cs')
+          try {
+            Copy-Item -LiteralPath $source -Destination $negative
+            Add-Content -LiteralPath $negative -Value '// deliberate source-drift negative mutation'
+            $mutated=(& git hash-object $negative).Trim()
+            if($LASTEXITCODE -ne 0 -or $mutated -ceq $actual) {
+              throw 'Mutated WPF source was not rejected by immutable Git blob guard'
+            }
+          } finally {
+            if(Test-Path -LiteralPath $negative) { Remove-Item -LiteralPath $negative -Force }
+          }
+          Write-Host 'PASS_SHARED_WPF_SOURCE_PIN_MYTAG_DJ_AND_MUTATION_REJECTION'
+
       - name: Checkout unchanged original Bridge v3 publisher source
         uses: actions/checkout@v5
         with:

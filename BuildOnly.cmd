@@ -78,6 +78,7 @@ echo.
   "src\WindowGeometrySettings.cs" ^
   "src\GridLayoutSettings.cs" ^
   "src\FieldSchema.cs" ^
+  "src\SharedHorizontalScrollSupport.cs" ^
   "src\HorizontalScrollSupport.cs" ^
   "src\UiHelpers.cs" ^
   "src\GridGovernance.cs" ^
