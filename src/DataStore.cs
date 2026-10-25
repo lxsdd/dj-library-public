@@ -347,7 +347,17 @@ namespace DJLibrary
                             Norm(digitalBase) == Norm(t.Title) && Norm(d.RemixedBy) == normalizedVersion;
                         bool displayExact = normalizedDisplay.Length != 0 &&
                             Norm(d.Title) == normalizedDisplay;
-                        bool identityExact = structured || displayExact;
+                        // A flattened key is useful for candidate discovery, but can
+                        // collide for different word boundaries ("A BC" vs "AB C").
+                        // Never let such a collision become STRONG genre evidence.
+                        bool boundaryStructured = structured &&
+                            NormWordBoundaries(digitalBase) == NormWordBoundaries(t.Title) &&
+                            NormWordBoundaries(d.RemixedBy) == NormWordBoundaries(t.Version);
+                        bool boundaryDisplay = displayExact &&
+                            NormWordBoundaries(d.Title) == NormWordBoundaries(displayTitle);
+                        bool identityExact =
+                            NormWordBoundaries(t.Artist) == NormWordBoundaries(d.Artist) &&
+                            (boundaryStructured || boundaryDisplay);
                         bool durationKnown = t.DurationSeconds > 0 && d.DurationSeconds > 0;
                         double durationDiff = durationKnown ? Math.Abs(t.DurationSeconds - d.DurationSeconds) : 0;
                         bool durationClose = durationKnown && durationDiff <= 3.0;
@@ -361,8 +371,8 @@ namespace DJLibrary
                         if (QualifiesStrongDigitalMatch(identityExact, durationConflict, durationClose, d.Subsong))
                         {
                             strong.Add(d); levels[d.ItemId] = "strong";
-                            methods[d.ItemId] = structured ? "live_exact_artist_title_version_duration" : "live_exact_display_title_duration";
-                            confidences[d.ItemId] = structured ? 1.0 : (String.IsNullOrWhiteSpace(t.Version) ? 1.0 : 0.99);
+                            methods[d.ItemId] = boundaryStructured ? "live_exact_artist_title_version_duration" : "live_exact_display_title_duration";
+                            confidences[d.ItemId] = boundaryStructured ? 1.0 : (String.IsNullOrWhiteSpace(t.Version) ? 1.0 : 0.99);
                         }
                         else if (identityExact || durationClose)
                         {
@@ -491,6 +501,26 @@ namespace DJLibrary
         {
             if (String.IsNullOrWhiteSpace(value)) return "";
             StringBuilder b=new StringBuilder(); foreach(char ch in value.ToLowerInvariant()) if(Char.IsLetterOrDigit(ch)) b.Append(ch);
+            return b.ToString();
+        }
+
+        // Keep lexical boundaries only for STRONG identity qualification.
+        // Candidate retrieval deliberately retains the existing permissive Norm.
+        private static string NormWordBoundaries(string value)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return "";
+            StringBuilder b = new StringBuilder();
+            bool boundary = false;
+            foreach (char ch in value.ToLowerInvariant())
+            {
+                if (Char.IsLetterOrDigit(ch))
+                {
+                    if (boundary && b.Length > 0) b.Append(' ');
+                    b.Append(ch);
+                    boundary = false;
+                }
+                else if (b.Length > 0) boundary = true;
+            }
             return b.ToString();
         }
         private static string JoinGenres(Dictionary<string,int> genres)

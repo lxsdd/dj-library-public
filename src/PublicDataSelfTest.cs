@@ -396,6 +396,56 @@ namespace DJLibrary
             if (track.StrongCount != 1 || track.Genre != "Trance" ||
                 disc.Genre != "Trance" || store.GetMatchesForTrack(1).Count != 1)
                 throw new InvalidDataException("Meaningful displayed-title identity regressed.");
+
+            // A flat alphanumeric key alone falsely treats different word
+            // boundaries as identical and used to project an unrelated genre.
+            // Keep the candidate visible, but withhold STRONG and GENRE.
+            track.Artist = "A BC";
+            item.Artist = "AB C";
+            track.Title = track.DisplayTitle = "Moon Light";
+            item.Title = item.OriginalTitle = "Moon Light";
+            item.Subsong = 0;
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy")
+                throw new InvalidDataException("Artist word-boundary collision projected unrelated GENRE.");
+
+            track.Artist = item.Artist = "Example Artist";
+            item.Title = item.OriginalTitle = "Moonlight";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected)
+                throw new InvalidDataException("Title word-boundary collision projected unrelated GENRE.");
+
+            // Ordinary hyphen/space spelling variants still qualify when the
+            // lexical words are actually the same.
+            track.Artist = "A-BC";
+            item.Artist = "A BC";
+            track.Title = track.DisplayTitle = "Moon-Light";
+            item.Title = item.OriginalTitle = "Moon Light";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance" || store.ProjectedTrackGenreCount != 1)
+                throw new InvalidDataException("Equivalent hyphen/space identity was over-rejected.");
+
+            // Structured remix labels have the same collision boundary.
+            track.Artist = item.Artist = "Example Artist";
+            track.Title = item.OriginalTitle = "Moon Light";
+            track.DisplayTitle = "Different Display";
+            item.Title = "Other Display";
+            track.Version = "Deep House";
+            item.RemixedBy = "Deephouse";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected)
+                throw new InvalidDataException("Remix word-boundary collision projected unrelated GENRE.");
+
+            item.RemixedBy = "Deep-House";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Equivalent structured remix spelling was over-rejected.");
         }
 
         private static void VerifyLiveDigitalLookupIndex()
