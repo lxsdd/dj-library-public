@@ -528,29 +528,74 @@ namespace DJLibrary
             return result;
         }
 
-        private static string Norm(string value)
+        // Unicode composed/decomposed spellings identify the same artist or
+        // title. Reject malformed surrogate input instead of accidentally
+        // constructing an auto-GENRE identity from a damaged text field.
+        private static string NormalizedIdentityInput(string value)
         {
             if (String.IsNullOrWhiteSpace(value)) return "";
-            StringBuilder b=new StringBuilder(); foreach(char ch in value.ToLowerInvariant()) if(Char.IsLetterOrDigit(ch)) b.Append(ch);
+            try { return value.Normalize(NormalizationForm.FormC).ToLowerInvariant(); }
+            catch (ArgumentException) { return ""; }
+        }
+
+        // NFC does not compose every valid combining mark. Do not silently
+        // erase remaining marks: e.g. Q + dot-below is not plain Q.
+        private static bool IsIdentityCombiningMark(char ch)
+        {
+            UnicodeCategory category = CharUnicodeInfo.GetUnicodeCategory(ch);
+            return category == UnicodeCategory.NonSpacingMark ||
+                   category == UnicodeCategory.SpacingCombiningMark ||
+                   category == UnicodeCategory.EnclosingMark;
+        }
+
+        private static string Norm(string value)
+        {
+            string normalized = NormalizedIdentityInput(value);
+            StringBuilder b = new StringBuilder();
+            bool attachMark = false;
+            foreach (char ch in normalized)
+            {
+                if (Char.IsLetterOrDigit(ch))
+                {
+                    b.Append(ch);
+                    attachMark = true;
+                }
+                else if (attachMark && IsIdentityCombiningMark(ch))
+                {
+                    b.Append(ch);
+                }
+                else attachMark = false;
+            }
             return b.ToString();
         }
 
-        // Keep lexical boundaries only for STRONG identity qualification.
-        // Candidate retrieval deliberately retains the existing permissive Norm.
+        // Flat candidate retrieval remains permissive, but a remaining
+        // combining mark belongs to its previous base character rather than
+        // becoming a word separator or disappearing from STRONG identity.
         private static string NormWordBoundaries(string value)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "";
+            string normalized = NormalizedIdentityInput(value);
             StringBuilder b = new StringBuilder();
             bool boundary = false;
-            foreach (char ch in value.ToLowerInvariant())
+            bool attachMark = false;
+            foreach (char ch in normalized)
             {
                 if (Char.IsLetterOrDigit(ch))
                 {
                     if (boundary && b.Length > 0) b.Append(' ');
                     b.Append(ch);
                     boundary = false;
+                    attachMark = true;
                 }
-                else if (b.Length > 0) boundary = true;
+                else if (attachMark && IsIdentityCombiningMark(ch))
+                {
+                    b.Append(ch);
+                }
+                else
+                {
+                    if (b.Length > 0) boundary = true;
+                    attachMark = false;
+                }
             }
             return b.ToString();
         }
