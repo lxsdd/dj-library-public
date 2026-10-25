@@ -372,9 +372,22 @@ namespace DJLibrary
                         bool conflictingBridgeVersion = normalizedVersion.Length != 0 &&
                             Norm(d.RemixedBy).Length != 0 &&
                             NormWordBoundaries(d.RemixedBy) != boundaryVersion;
+                        // Bridge fields are independent evidence. An exact display
+                        // must not override an explicit contradictory original title.
+                        // Likewise, an unversioned CD must not inherit the GENRE of a
+                        // separately tagged digital remix unless its displayed CD
+                        // title actually identifies that complete lexical remix.
+                        string digitalBaseBoundary = NormWordBoundaries(d.OriginalTitle);
+                        bool conflictingBridgeBase = Norm(d.OriginalTitle).Length != 0 &&
+                            digitalBaseBoundary != NormWordBoundaries(t.Title);
+                        string bridgeVersionBoundary = NormWordBoundaries(d.RemixedBy);
+                        bool unverifiedUnversionedBridgeMix = normalizedVersion.Length == 0 &&
+                            bridgeVersionBoundary.Length != 0 &&
+                            !(" " + boundaryDisplayTitle + " ").Contains(" " + bridgeVersionBoundary + " ");
                         bool identityExact =
                             NormWordBoundaries(t.Artist) == NormWordBoundaries(d.Artist) &&
-                            !conflictingBridgeVersion &&
+                            !conflictingBridgeVersion && !conflictingBridgeBase &&
+                            !unverifiedUnversionedBridgeMix &&
                             (boundaryStructured || boundaryDisplay);
                         bool durationKnown = t.DurationSeconds > 0 && d.DurationSeconds > 0;
                         double durationDiff = durationKnown ? Math.Abs(t.DurationSeconds - d.DurationSeconds) : 0;
