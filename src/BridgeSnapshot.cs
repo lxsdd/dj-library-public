@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Web.Script.Serialization;
 
 namespace DJLibrary
 {
@@ -265,6 +266,50 @@ namespace DJLibrary
                 fields[0] = "C:\\Music\\test.flac";
                 WriteSyntheticV3Rows(itemPath, fields, true);
                 AssertRejectedV3Snapshot(directory, status);
+                // MyTagSync and DJ Library must reject exactly the same
+                // malformed canonical V2/V3 JSON envelopes, not merely
+                // column counts. Original strings stay byte-for-byte intact.
+                fields[24] = "{\"MOOD\":[\"Deep\",\"Warm\"]}";
+                fields[25] = "[{\"name\":\"ARTIST\",\"values\":[\"Artist\",\"Guest\"]}," +
+                             "{\"name\":\"MOOD\",\"values\":[\"Deep\",\"Warm\"]}]";
+                WriteSyntheticV3Rows(itemPath, fields, false);
+                BridgeSnapshotStatus validJsonStatus = Inspect(directory, true);
+                List<DigitalItem> validJsonItems = LoadItems(directory, validJsonStatus);
+                if (!validJsonStatus.Compatible || validJsonItems.Count != 1 ||
+                    validJsonItems[0].MetadataVectorsJson != fields[25])
+                    throw new InvalidOperationException("Valid multivalue Bridge-v3 JSON envelope was rejected or mutated.");
+
+                foreach (string invalidExtra in new string[]
+                {
+                    "", "{broken", "[]", "{\"ARTIST\":[\"Wrong\"]}",
+                    "{\"MOOD\":null}", "{\"MOOD\":[null]}",
+                    "{\"MOOD\":[\"Deep\", 2]}",
+                    "{\"MOOD\":[\"Deep\"],\"mood\":[\"Warm\"]}",
+                    "{\"\":[\"Deep\"]}"
+                })
+                {
+                    fields[24] = invalidExtra;
+                    WriteSyntheticV3Rows(itemPath, fields, false);
+                    AssertRejectedV3Snapshot(directory, status);
+                }
+                fields[24] = "{\"MOOD\":[\"Deep\",\"Warm\"]}";
+                foreach (string invalidVectors in new string[]
+                {
+                    "", "{broken", "{}", "[null]",
+                    "[{\"name\":\"ARTIST\",\"values\":\"Artist\"}]",
+                    "[{\"name\":\"ARTIST\",\"values\":[123]}]",
+                    "[{\"name\":\"ARTIST\",\"values\":[\"A\"]}," +
+                    "{\"name\":\"artist\",\"values\":[\"B\"]}]",
+                    "[{\"name\":\"\",\"values\":[\"A\"]}]",
+                    "[{\"name\":\"ARTIST\"}]"
+                })
+                {
+                    fields[25] = invalidVectors;
+                    WriteSyntheticV3Rows(itemPath, fields, false);
+                    AssertRejectedV3Snapshot(directory, status);
+                }
+                fields[24] = "{}";
+                fields[25] = "[{\"name\":\"ARTIST\",\"values\":[\"Artist\",\"Guest\"]}]";
                 WriteSyntheticV3Rows(itemPath, fields, false);
                 if (!Inspect(directory, true).Compatible ||
                     LoadItems(directory, status).Count != 1)
@@ -389,6 +434,103 @@ namespace DJLibrary
                 (!Double.TryParse(row[19], NumberStyles.Float, CultureInfo.InvariantCulture, out duration) ||
                  duration < 0 || Double.IsNaN(duration) || Double.IsInfinity(duration)))
                 throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat ungültige duration_seconds.");
+            // The C++ publisher owns the opaque bytes, but both WPF consumers
+            // must agree whether the V2/V3 envelope is valid before accepting
+            // any Bridge generation. Preserve bytes, validate shape only.
+            if (columns >= ItemColumnCountV2)
+                ValidateExtraMetadataJson(row[24], lineNo);
+            if (columns >= ItemColumnCountV3)
+                ValidateMetadataVectorsJson(row[25], lineNo);
+        }
+
+        // Exact reserved core names from foo_dj_library_bridge's canonical
+        // extra_metadata_json producer; same policy as MyTagSync.
+        private static readonly HashSet<string> CoreMetadataNames =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "ARTIST", "ARTISTS", "TITLE", "ORIGINAL TITLE", "REMIXED BY",
+                "ALBUM", "ALBUM ARTIST", "TRACKNUMBER", "TRACK", "TOTALTRACKS",
+                "TRACKTOTAL", "DISCNUMBER", "DISC", "TOTALDISCS", "DISCTOTAL",
+                "DATE", "YEAR", "GENRE", "STYLE", "BPM", "LABEL", "PUBLISHER",
+                "CATALOGNUMBER", "CATALOG NUMBER", "CATALOG", "ISRC"
+            };
+
+        private static object ParseBridgeJson(string value, string column, int lineNo)
+        {
+            if (String.IsNullOrWhiteSpace(value) || value.Length > 16 * 1024 * 1024)
+                throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo +
+                    " hat fehlendes oder übergroßes " + column + ".");
+            try
+            {
+                // .NET Framework 4.x JSON parser is already pinned and linked
+                // in BuildOnly.cmd; no new dependency or network acquisition.
+                var parser = new JavaScriptSerializer
+                {
+                    MaxJsonLength = 16 * 1024 * 1024,
+                    RecursionLimit = 64
+                };
+                return parser.DeserializeObject(value);
+            }
+            catch (ArgumentException ex)
+            {
+                throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo +
+                    " hat ungültiges " + column + ".", ex);
+            }
+            catch (InvalidOperationException ex)
+            {
+                throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo +
+                    " hat ungültiges " + column + ".", ex);
+            }
+        }
+
+        private static void ValidateExtraMetadataJson(string json, int lineNo)
+        {
+            var fields = ParseBridgeJson(json, "extra_metadata_json", lineNo)
+                as Dictionary<string, object>;
+            if (fields == null)
+                throw new InvalidDataException("Bridge V2/V3 extra_metadata_json muss ein Objekt sein.");
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var field in fields)
+            {
+                if (String.IsNullOrWhiteSpace(field.Key) || !names.Add(field.Key) ||
+                    CoreMetadataNames.Contains(field.Key))
+                    throw new InvalidDataException("Bridge V2/V3 extra_metadata_json hat einen doppelten, leeren oder reservierten Feldnamen.");
+                var values = field.Value as object[];
+                if (values == null)
+                    throw new InvalidDataException("Bridge V2/V3 extra_metadata_json enthält keine Stringliste.");
+                foreach (object value in values)
+                {
+                    var text = value as string;
+                    if (String.IsNullOrEmpty(text))
+                        throw new InvalidDataException("Bridge V2/V3 extra_metadata_json enthält leere oder nichttextuelle Werte.");
+                }
+            }
+        }
+
+        private static void ValidateMetadataVectorsJson(string json, int lineNo)
+        {
+            var entries = ParseBridgeJson(json, "metadata_vectors_json", lineNo)
+                as object[];
+            if (entries == null)
+                throw new InvalidDataException("Bridge V3 metadata_vectors_json muss eine Liste sein.");
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (object entry in entries)
+            {
+                var field = entry as Dictionary<string, object>;
+                object nameObject, valuesObject;
+                if (field == null || !field.TryGetValue("name", out nameObject) ||
+                    !field.TryGetValue("values", out valuesObject))
+                    throw new InvalidDataException("Bridge V3 metadata_vectors_json hat einen ungültigen Feldeintrag.");
+                var name = nameObject as string;
+                var values = valuesObject as object[];
+                if (String.IsNullOrWhiteSpace(name) || !names.Add(name) || values == null)
+                    throw new InvalidDataException("Bridge V3 metadata_vectors_json hat einen ungültigen oder doppelten Feldnamen.");
+                // Empty individual values are permitted by the original C++
+                // producer and are ignored by MyTagSync's core projection.
+                foreach (object value in values)
+                    if (!(value is string))
+                        throw new InvalidDataException("Bridge V3 metadata_vectors_json hat einen nichttextuellen Wert.");
+            }
         }
 
         private static int VerifyItems(string path, int schema)
