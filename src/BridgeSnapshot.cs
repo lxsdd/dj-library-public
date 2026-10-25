@@ -155,14 +155,15 @@ namespace DJLibrary
                 while ((line = sr.ReadLine()) != null)
                 {
                     lineNo++; string[] p = line.Split('\t');
-                    if (p.Length != expectedColumns) throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat nicht " + expectedColumns + " Spalten.");
+                    ValidateItemRow(p, expectedColumns, lineNo, identities);
                     DigitalItem d = new DigitalItem(); d.ItemId = ++id; d.Path = p[0];
-                    if (String.IsNullOrWhiteSpace(d.Path)) throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat keinen Pfad.");
-                    int subsong; if (!Int32.TryParse(p[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out subsong) || subsong < 0) throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat ungültigen subsong."); d.Subsong = subsong;
-                    string identity = d.Path + "\n" + d.Subsong.ToString(CultureInfo.InvariantCulture);
-                    if (!identities.Add(identity)) throw new InvalidDataException("digital-items.tsv.gz: doppelte Identität path+subsong in Zeile " + lineNo + ".");
+                    d.Subsong = Int32.Parse(p[1], NumberStyles.Integer, CultureInfo.InvariantCulture);
                     d.Artist=p[2]; d.Title=p[4]; d.OriginalTitle=p[5]; d.RemixedBy=p[6]; d.Album=p[7]; d.AlbumArtist=p[8]; d.Genre=p[14]; d.Style=p[15];
-                    double bpm; Double.TryParse(p[16], NumberStyles.Float, CultureInfo.InvariantCulture, out bpm); d.Bpm=bpm; d.Label=p[17]; d.Catalog=p[18];
+                    // The native foobar Bridge writes BPM as a raw multivalue
+                    // tag, NOT as a guaranteed scalar. Keep those original
+                    // bytes in metadata_vectors_json; an invalid scalar must
+                    // never leak NaN/Infinity into GUI or GENRE confidence.
+                    d.Bpm=ProjectBpm(p[16]); d.Label=p[17]; d.Catalog=p[18];
                     double dur = 0; if (!String.IsNullOrWhiteSpace(p[19]) && (!Double.TryParse(p[19], NumberStyles.Float, CultureInfo.InvariantCulture, out dur) || dur < 0 || Double.IsNaN(dur) || Double.IsInfinity(dur))) throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat ungültige duration_seconds."); d.DurationSeconds=dur; d.Codec=p[21]; d.Bitrate=p[22]; d.Fingerprint=p[23];
                     // Schema v2 appends extra_metadata_json at p[24]; schema v3 additionally appends
                     // metadata_vectors_json at p[25]. Preserve the lossless v3 payload separately from
@@ -223,11 +224,81 @@ namespace DJLibrary
                     items[0].Title != "Title" || items[0].Genre != "House" || items[0].Fingerprint != fields[23] ||
                     items[0].MetadataVectorsJson != fields[25])
                     throw new InvalidOperationException("Bridge schema-v3 row projection self-test failed.");
+
+                // Real Bridge-V3 producer emits raw BPM tag values. They may
+                // contain multiple values, invalid text or floating-point
+                // special values; keep the original metadata vectors intact
+                // while never exposing an unsafe numeric GUI projection.
+                foreach (string rawBpm in new string[] { "NaN", "Infinity", "-Infinity", "-1", "130; 131", "not-a-number" })
+                {
+                    fields[16] = rawBpm;
+                    WriteSyntheticV3Rows(itemPath, fields, false);
+                    BridgeSnapshotStatus rawBpmStatus = Inspect(directory, true);
+                    if (!rawBpmStatus.Compatible || !rawBpmStatus.Complete ||
+                        rawBpmStatus.VerifiedItemCount != 1 ||
+                        LoadItems(directory, rawBpmStatus)[0].Bpm != 0 ||
+                        LoadItems(directory, rawBpmStatus)[0].MetadataVectorsJson != fields[25])
+                        throw new InvalidOperationException("Raw foobar BPM value contaminated or invalidated Bridge-V3 snapshot.");
+                }
+                fields[16] = "128.5";
+                WriteSyntheticV3Rows(itemPath, fields, false);
+                BridgeSnapshotStatus goodBpmStatus = Inspect(directory, true);
+                if (!goodBpmStatus.Compatible || LoadItems(directory, goodBpmStatus)[0].Bpm != 128.5)
+                    throw new InvalidOperationException("Measured Bridge-V3 BPM scalar was over-rejected.");
+
+                // Bad timing/identity must be rejected at Inspect(true), not
+                // after an authoritative generation was already accepted.
+                foreach (string invalidDuration in new string[] { "NaN", "Infinity", "-Infinity", "-1", "broken" })
+                {
+                    fields[19] = invalidDuration;
+                    WriteSyntheticV3Rows(itemPath, fields, false);
+                    AssertRejectedV3Snapshot(directory, status);
+                }
+                fields[19] = "300";
+                fields[1] = "-1";
+                WriteSyntheticV3Rows(itemPath, fields, false);
+                AssertRejectedV3Snapshot(directory, status);
+                fields[1] = "0";
+                fields[0] = "";
+                WriteSyntheticV3Rows(itemPath, fields, false);
+                AssertRejectedV3Snapshot(directory, status);
+                fields[0] = "C:\\Music\\test.flac";
+                WriteSyntheticV3Rows(itemPath, fields, true);
+                AssertRejectedV3Snapshot(directory, status);
+                WriteSyntheticV3Rows(itemPath, fields, false);
+                if (!Inspect(directory, true).Compatible ||
+                    LoadItems(directory, status).Count != 1)
+                    throw new InvalidOperationException("Recovered Bridge-V3 fixture failed to become authoritative.");
             }
             finally
             {
                 try { Directory.Delete(directory, true); } catch { }
             }
+        }
+
+        private static void WriteSyntheticV3Rows(string path, string[] row, bool repeat)
+        {
+            using (FileStream fs = File.Create(path))
+            using (GZipStream gz = new GZipStream(fs, CompressionMode.Compress))
+            using (StreamWriter sw = new StreamWriter(gz, new UTF8Encoding(false)))
+            {
+                sw.WriteLine(ItemHeaderV3);
+                string line = String.Join("\t", row);
+                sw.WriteLine(line);
+                if (repeat) sw.WriteLine(line);
+            }
+        }
+
+        private static void AssertRejectedV3Snapshot(string directory, BridgeSnapshotStatus original)
+        {
+            BridgeSnapshotStatus status = Inspect(directory, true);
+            if (status.Compatible || String.IsNullOrWhiteSpace(status.Error))
+                throw new InvalidOperationException("Corrupt Bridge-V3 generation became authoritative.");
+            bool rejected = false;
+            try { LoadItems(directory, original); }
+            catch (InvalidDataException) { rejected = true; }
+            if (!rejected)
+                throw new InvalidOperationException("Corrupt Bridge-V3 rows loaded despite failed snapshot preflight.");
         }
 
         private static BridgeSnapshotStatus ParseStateBytes(byte[] bytes, string directory)
@@ -287,10 +358,44 @@ namespace DJLibrary
             return true;
         }
 
+        private static double ProjectBpm(string raw)
+        {
+            double bpm;
+            if (String.IsNullOrWhiteSpace(raw) ||
+                !Double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out bpm) ||
+                Double.IsNaN(bpm) || Double.IsInfinity(bpm) || bpm < 0)
+                return 0;
+            return bpm;
+        }
+
+        // Inspect(true) and LoadItems use the same immutable producer boundary.
+        // A bad physical identity/duration must fail BEFORE the GUI accepts the
+        // generation; duplicate (path,subsong) is not a valid new generation.
+        private static void ValidateItemRow(string[] row, int columns, int lineNo,
+            HashSet<string> identities)
+        {
+            if (row.Length != columns)
+                throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat nicht " + columns + " Spalten.");
+            if (String.IsNullOrWhiteSpace(row[0]))
+                throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat keinen Pfad.");
+            int subsong;
+            if (!Int32.TryParse(row[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out subsong) || subsong < 0)
+                throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat ungültigen subsong.");
+            string identity = row[0] + "\n" + subsong.ToString(CultureInfo.InvariantCulture);
+            if (!identities.Add(identity))
+                throw new InvalidDataException("digital-items.tsv.gz: doppelte Identität path+subsong in Zeile " + lineNo + ".");
+            double duration;
+            if (!String.IsNullOrWhiteSpace(row[19]) &&
+                (!Double.TryParse(row[19], NumberStyles.Float, CultureInfo.InvariantCulture, out duration) ||
+                 duration < 0 || Double.IsNaN(duration) || Double.IsInfinity(duration)))
+                throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat ungültige duration_seconds.");
+        }
+
         private static int VerifyItems(string path, int schema)
         {
             int count = 0;
             int expectedColumns = ColumnCountForSchema(schema);
+            HashSet<string> identities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             using (FileStream fs = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             using (GZipStream gz = new GZipStream(fs, CompressionMode.Decompress))
             using (StreamReader sr = new StreamReader(gz, new UTF8Encoding(false), true, 65536))
@@ -302,7 +407,7 @@ namespace DJLibrary
                 while ((line = sr.ReadLine()) != null)
                 {
                     lineNo++;
-                    if (line.Split('\t').Length != expectedColumns) throw new InvalidDataException("digital-items.tsv.gz: Zeile " + lineNo + " hat nicht " + expectedColumns + " Spalten.");
+                    ValidateItemRow(line.Split('\t'), expectedColumns, lineNo, identities);
                     count++;
                 }
             }
