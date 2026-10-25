@@ -685,7 +685,18 @@ namespace DJLibrary
                     sb.Append(values[i]);
                 }
             }
-            return sb.ToString().ToLowerInvariant();
+            // This is the cached per-track/CD search index. Canonicalize
+            // once per projection, not once per row on each WPF keystroke.
+            return CanonicalSearchText(sb.ToString().ToLowerInvariant());
+        }
+
+        // Shared with the WPF query path: NFC preserves meaningful accents
+        // while accepting composed and decomposed Unicode equivalents.
+        internal static string CanonicalSearchText(string value)
+        {
+            if (String.IsNullOrEmpty(value)) return "";
+            try { return value.Normalize(NormalizationForm.FormC); }
+            catch (ArgumentException) { return value; }
         }
     }
 }

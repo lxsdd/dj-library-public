@@ -117,6 +117,7 @@ namespace DJLibrary
                 VerifyCorruptPrimarySettingsBackupPreserved(dir);
                 VerifyCatalogReloadRollback(dir);
                 VerifyNumericEditorSafety();
+                VerifyUnicodeWpfSearchNormalization();
                 // Virtual foobar CUE/subsong rows must remain searchable, yet
                 // must never be promoted to "strong" without a verified
                 // segment-vs-CD duration. This is a synthetic, no-media test.
@@ -241,6 +242,55 @@ namespace DJLibrary
                 store.GetMatchesForTrack(9002).Count != 0)
                 throw new InvalidDataException("Bridge generation replacement retained stale live matches.");
             return "PASS_NATIVE_PUBLISHER_V3_54129_LIVE_GENRE_AND_CUE";
+        }
+
+        // Full production cached SearchText + WPF ContainsAllTerms path.
+        // All catalog rows are synthetic; no user search history or audio.
+        private static void VerifyUnicodeWpfSearchNormalization()
+        {
+            var store = new DataStore();
+            var track = new TrackRow {
+                TrackId = 1, DiscId = 1, Artist = "Bjo\u0308rk",
+                Title = "Jo\u0301ga", DisplayTitle = "Jo\u0301ga",
+                LegacyGenre = "Trance", Genre = "Trance"
+            };
+            var disc = new CdRow {
+                DiscId = 1, Tracks = 1, AlbumArtist = "Bjo\u0308rk",
+                Album = "Jo\u0301ga", LegacyGenre = "Trance", Genre = "Trance"
+            };
+            store.Tracks.Add(track);
+            store.Cds.Add(disc);
+            store.TracksByDisc.Add(1, new System.Collections.Generic.List<TrackRow> { track });
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem>());
+
+            if (!UiHelpers.ContainsAllTerms(track.SearchText, "Björk Jóga") ||
+                !UiHelpers.ContainsAllTerms(disc.SearchText, "Björk Jóga") ||
+                !track.SearchText.Contains("björk") ||
+                UiHelpers.ContainsAllTerms(track.SearchText, "Björk Joga") ||
+                UiHelpers.ContainsAllTerms(disc.SearchText, "Björk Joga"))
+                throw new InvalidDataException("NFC cached WPF Track/CD search lost canonical equivalence or accent distinction.");
+
+            track.Artist = disc.AlbumArtist = "Björk";
+            track.Title = track.DisplayTitle = disc.Album = "Jóga";
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem>());
+            if (!UiHelpers.ContainsAllTerms(track.SearchText, "Bjo\u0308rk Jo\u0301ga") ||
+                !UiHelpers.ContainsAllTerms(disc.SearchText, "Bjo\u0308rk Jo\u0301ga"))
+                throw new InvalidDataException("Decomposed WPF search query lost precomposed catalog rows.");
+
+            track.Title = track.DisplayTitle = "Q\u0323a";
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem>());
+            if (!UiHelpers.ContainsAllTerms(track.SearchText, "Q\u0323a") ||
+                UiHelpers.ContainsAllTerms(track.SearchText, "Qa"))
+                throw new InvalidDataException("Noncomposable Unicode mark collapsed or could not be searched.");
+
+            // Malformed UTF-16 must not crash MainWindow when generating the
+            // search cache or applying a saved search string.
+            track.Title = track.DisplayTitle = "Broken \uD800";
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem>());
+            UiHelpers.ContainsAllTerms(track.SearchText, "Broken \uD800");
+            if (!UiHelpers.ContainsAllTerms("", "") ||
+                UiHelpers.ContainsAllTerms(null, "Björk"))
+                throw new InvalidDataException("Empty/malformed WPF search boundary regressed.");
         }
 
         // Exercise the exact formatter/parser and BPM gate used by the real

@@ -440,7 +440,10 @@ namespace DJLibrary
         {
             if (String.IsNullOrWhiteSpace(search)) return true;
             if (haystack == null) haystack = "";
-            string[] terms = search.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            // MainWindow caches NFC SearchText through DataStore.LowerJoin;
+            // normalize only the short query during WPF filtering.
+            string[] terms = DataStore.CanonicalSearchText(search).Split(
+                new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
             int i;
             for (i = 0; i < terms.Length; i++)
             {
