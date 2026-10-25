@@ -389,7 +389,15 @@ namespace DJLibrary
                             !conflictingBridgeVersion && !conflictingBridgeBase &&
                             !unverifiedUnversionedBridgeMix &&
                             (boundaryStructured || boundaryDisplay);
-                        bool durationKnown = t.DurationSeconds > 0 && d.DurationSeconds > 0;
+                        // A zero duration is an explicitly supported unknown
+                        // physical-file length. Negative/nonfinite values are
+                        // corrupt evidence, not an unknown: in particular
+                        // Infinity-Infinity yields NaN and used to bypass the
+                        // physical STRONG duration-conflict check.
+                        bool invalidDuration = !IsValidOrUnknownDuration(t.DurationSeconds) ||
+                            !IsValidOrUnknownDuration(d.DurationSeconds);
+                        bool durationKnown = !invalidDuration &&
+                            t.DurationSeconds > 0 && d.DurationSeconds > 0;
                         double durationDiff = durationKnown ? Math.Abs(t.DurationSeconds - d.DurationSeconds) : 0;
                         bool durationClose = durationKnown && durationDiff <= 3.0;
                         bool durationConflict = durationKnown && durationDiff > 3.0;
@@ -399,7 +407,8 @@ namespace DJLibrary
                         // strong without a *known, close* duration match.
                         // Physical (subsong 0) matching keeps its established
                         // behaviour and the existing ambiguity/genre gates.
-                        if (QualifiesStrongDigitalMatch(identityExact, durationConflict, durationClose, d.Subsong))
+                        if (QualifiesStrongDigitalMatch(identityExact && !invalidDuration,
+                            durationConflict, durationClose, d.Subsong))
                         {
                             strong.Add(d); levels[d.ItemId] = "strong";
                             methods[d.ItemId] = boundaryStructured ? "live_exact_artist_title_version_duration" : "live_exact_display_title_duration";
@@ -492,6 +501,11 @@ namespace DJLibrary
                 c.SearchText=LowerJoin(c.AlbumArtist,c.Album,c.Date,c.Genre,c.LegacyGenre,c.DigitalGenres,c.Label,c.Catalog,c.Country,c.Medium);
             }
             return String.Format(CultureInfo.InvariantCulture,"Live: {0} Items -> {1} Track- und {2} CD-Genreprojektionen",items.Count,ProjectedTrackGenreCount,ProjectedCdGenreCount);
+        }
+
+        private static bool IsValidOrUnknownDuration(double seconds)
+        {
+            return !Double.IsNaN(seconds) && !Double.IsInfinity(seconds) && seconds >= 0;
         }
 
         // A virtual row represents a segment, not an independent physical
