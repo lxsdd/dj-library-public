@@ -284,7 +284,7 @@ namespace DJLibrary
                 fields[4] = "Title";
                 WriteSyntheticV3Rows(itemPath, fields, false);
                 status = Inspect(directory, true);
-                string changedState = state.Replace("source_name\\tSchema v3 self-test", "source_name\\tChanged profile label");
+                string changedState = state.Replace("source_name\tSchema v3 self-test", "source_name\tChanged profile label");
                 if (changedState == state) throw new InvalidOperationException("State mutation anchor missing.");
                 File.WriteAllText(statePath, changedState, new UTF8Encoding(false));
                 AssertStaleV3Rejected(directory, status, "same-generation state metadata replacement");
