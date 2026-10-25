@@ -446,6 +446,57 @@ namespace DJLibrary
             if (track.StrongCount != 1 || track.Genre != "Trance" ||
                 disc.Genre != "Trance")
                 throw new InvalidDataException("Equivalent structured remix spelling was over-rejected.");
+
+            // A CD version must not be overridden by a Bridge row that only
+            // shares the base title. Previously the display-title fallback
+            // ignored Version and projected an unrelated Radio Edit genre.
+            track.Artist = item.Artist = "Example Artist";
+            track.Title = track.DisplayTitle = "Fictional Track";
+            track.Version = "Extended Mix";
+            item.Title = item.OriginalTitle = "Fictional Track";
+            item.RemixedBy = "Radio Edit";
+            item.Subsong = 0;
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy")
+                throw new InvalidDataException("Base-title fallback ignored a conflicting CD mix version.");
+
+            // A genuinely matching structured version still qualifies.
+            item.RemixedBy = "Extended Mix";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Exact structured version lost strong matching.");
+
+            // A full displayed title with the explicit version is also valid
+            // even when the Bridge does not populate RemixedBy separately.
+            track.DisplayTitle = "Fictional Track (Extended Mix)";
+            item.Title = track.DisplayTitle;
+            item.RemixedBy = "";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Explicit displayed mix version lost strong matching.");
+
+            // Conflicting displayed mix labels and partial-word coincidences
+            // must remain visible candidates without projecting a genre.
+            track.DisplayTitle = "Fictional Track (Radio Edit)";
+            item.Title = track.DisplayTitle;
+            item.RemixedBy = "Radio Edit";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected)
+                throw new InvalidDataException("Conflicting displayed mix projected GENRE.");
+
+            track.Version = "Mix";
+            track.DisplayTitle = "Fictional Track (Remix)";
+            item.Title = track.DisplayTitle;
+            item.RemixedBy = "Remix";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected)
+                throw new InvalidDataException("Remix substring incorrectly satisfied Mix version.");
         }
 
         private static void VerifyLiveDigitalLookupIndex()
