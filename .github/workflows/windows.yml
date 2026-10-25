@@ -166,6 +166,16 @@ jobs:
           if($LASTEXITCODE -and $LASTEXITCODE -ne 0){throw 'Real WPF GUI smoke failed'}
           Write-Host 'PASS_CURRENT_FRAMEWORK_WPF_REAL_GUI_RESTART_AND_PERSISTENCE'
 
+      - name: Qualify pinned shared WPF router in a real .NET 10 horizontal-wheel window
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          # Uses precisely the same tracked source blob that is already compiled
+          # into the .NET Framework application and into MyTagSync.
+          dotnet run --project tests/SharedWpfWheelProbe/SharedWpfWheelProbe.csproj --configuration Release --no-launch-profile
+          if($LASTEXITCODE -ne 0){throw 'Actual .NET10 shared WPF mousewheel routing failed'}
+          Write-Host 'PASS_SHARED_WPF_NET10_RUNTIME_AND_FRAMEWORK_GUI_EXACT_PIN'
+
       # Do not publish Windows product binaries from this source-only Draft.
       # Parallel source-only safety proposal PR #12 remains independent.
       - name: Package app without user data
