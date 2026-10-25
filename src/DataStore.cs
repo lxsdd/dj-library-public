@@ -366,8 +366,15 @@ namespace DJLibrary
                              (" " + boundaryDisplayTitle + " ").Contains(" " + boundaryVersion + " "));
                         bool boundaryDisplay = displayExact && displayCarriesVersion &&
                             NormWordBoundaries(d.Title) == boundaryDisplayTitle;
+                        // A matching display cannot override an explicitly conflicting
+                        // structured Bridge mix label. Keep the row discoverable, but
+                        // never promote contradictory identity evidence to STRONG.
+                        bool conflictingBridgeVersion = normalizedVersion.Length != 0 &&
+                            Norm(d.RemixedBy).Length != 0 &&
+                            NormWordBoundaries(d.RemixedBy) != boundaryVersion;
                         bool identityExact =
                             NormWordBoundaries(t.Artist) == NormWordBoundaries(d.Artist) &&
+                            !conflictingBridgeVersion &&
                             (boundaryStructured || boundaryDisplay);
                         bool durationKnown = t.DurationSeconds > 0 && d.DurationSeconds > 0;
                         double durationDiff = durationKnown ? Math.Abs(t.DurationSeconds - d.DurationSeconds) : 0;
