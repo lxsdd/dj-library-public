@@ -353,8 +353,19 @@ namespace DJLibrary
                         bool boundaryStructured = structured &&
                             NormWordBoundaries(digitalBase) == NormWordBoundaries(t.Title) &&
                             NormWordBoundaries(d.RemixedBy) == NormWordBoundaries(t.Version);
-                        bool boundaryDisplay = displayExact &&
-                            NormWordBoundaries(d.Title) == NormWordBoundaries(displayTitle);
+                        // A matching base title is not a matching mix. When the CD
+                        // explicitly names a version, the displayed title must
+                        // independently contain that complete lexical version
+                        // (or the structured RemixedBy field must match). Do not
+                        // let a base-title fallback or a substring like "Remix"
+                        // satisfy the distinct version "Mix".
+                        string boundaryVersion = NormWordBoundaries(t.Version);
+                        string boundaryDisplayTitle = NormWordBoundaries(displayTitle);
+                        bool displayCarriesVersion = boundaryVersion.Length == 0 ||
+                            (boundaryDisplayTitle != NormWordBoundaries(t.Title) &&
+                             (" " + boundaryDisplayTitle + " ").Contains(" " + boundaryVersion + " "));
+                        bool boundaryDisplay = displayExact && displayCarriesVersion &&
+                            NormWordBoundaries(d.Title) == boundaryDisplayTitle;
                         bool identityExact =
                             NormWordBoundaries(t.Artist) == NormWordBoundaries(d.Artist) &&
                             (boundaryStructured || boundaryDisplay);
