@@ -479,6 +479,30 @@ namespace DJLibrary
                 disc.Genre != "Trance")
                 throw new InvalidDataException("Explicit displayed mix version lost strong matching.");
 
+            // A displayed Extended Mix does not override a contradictory
+            // explicit Bridge remix field (Radio Edit / Extended Remix).
+            // Both rows stay discoverable, but neither can project GENRE.
+            item.RemixedBy = "Radio Edit";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected ||
+                track.Genre != "Legacy" || disc.Genre != "Legacy" ||
+                store.GetMatchesForTrack(1).Count != 1)
+                throw new InvalidDataException("Conflicting structured Bridge version overrode displayed CD mix.");
+
+            item.RemixedBy = "Extended Remix";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 0 || track.LikelyCount != 1 ||
+                track.GenreProjected || disc.GenreProjected)
+                throw new InvalidDataException("Partial-word Bridge remix conflict projected GENRE.");
+
+            // Lexically equivalent structured versions are not conflicts.
+            item.RemixedBy = "Extended-Mix";
+            store.ApplyLiveDigitalItems(generation);
+            if (track.StrongCount != 1 || track.Genre != "Trance" ||
+                disc.Genre != "Trance")
+                throw new InvalidDataException("Equivalent structured/display mix was over-rejected.");
+
             // Conflicting displayed mix labels and partial-word coincidences
             // must remain visible candidates without projecting a genre.
             track.DisplayTitle = "Fictional Track (Radio Edit)";
