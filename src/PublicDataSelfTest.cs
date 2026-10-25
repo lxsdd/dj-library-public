@@ -115,6 +115,7 @@ namespace DJLibrary
                     Verify(catalog.GetCounts(), 1, 2, 2, "invalid JSON preserves live catalog");
                 }
                 VerifyCorruptPrimarySettingsBackupPreserved(dir);
+                VerifyCatalogReloadRollback(dir);
                 // Virtual foobar CUE/subsong rows must remain searchable, yet
                 // must never be promoted to "strong" without a verified
                 // segment-vs-CD duration. This is a synthetic, no-media test.
@@ -239,6 +240,106 @@ namespace DJLibrary
                 store.GetMatchesForTrack(9002).Count != 0)
                 throw new InvalidDataException("Bridge generation replacement retained stale live matches.");
             return "PASS_NATIVE_PUBLISHER_V3_54129_LIVE_GENRE_AND_CUE";
+        }
+
+        // Private disposable SQLite/gzip fixtures; never inspect owner data.
+        private static void VerifyCatalogReloadRollback(string dir)
+        {
+            var store = new DataStore();
+            using (CatalogService first = CatalogService.CreateEmptyForTesting(
+                Path.Combine(dir, "reload-old.sqlite")))
+            {
+                long release = first.CreateRelease(new CatalogRelease {
+                    AlbumArtist = "Rollback Artist", Album = "Rollback Album", Genre = "Legacy"
+                });
+                long discId = first.AddDisc(new CatalogDisc {
+                    ReleaseId = release, DiscNumber = 1, Medium = "CD"
+                });
+                first.AddTrack(new CatalogTrack {
+                    DiscId = discId, Position = 1, Artist = "Rollback Artist",
+                    Title = "Rollback Track", Genre = "Legacy", LegacyGenre = "Legacy",
+                    DurationSeconds = 180
+                });
+                store.LoadFromCatalog(first, null);
+            }
+            if (store.Tracks.Count != 1 || store.Cds.Count != 1)
+                throw new InvalidDataException("Initial catalog reload fixture was not loaded.");
+            var live = new DigitalItem {
+                ItemId = 771, Artist = "Rollback Artist", Title = "Rollback Track",
+                DurationSeconds = 180, Subsong = 0, Genre = "Trance"
+            };
+            store.ApplyLiveDigitalItems(new System.Collections.Generic.List<DigitalItem> { live });
+            if (store.Tracks[0].StrongCount != 1 || store.Tracks[0].Genre != "Trance" ||
+                store.Cds[0].Genre != "Trance")
+                throw new InvalidDataException("Synthetic live baseline did not project.");
+            var oldTracks = store.Tracks;
+            var oldCds = store.Cds;
+            var oldByDisc = store.TracksByDisc;
+            var oldMatches = store.MatchesByTrack;
+            int trackId = oldTracks[0].TrackId;
+            string oldDescription = store.DigitalSourceDescription;
+            using (CatalogService empty = CatalogService.CreateEmptyForTesting(
+                Path.Combine(dir, "reload-empty.sqlite")))
+            {
+                // A valid gzip with an invalid matches row used to empty the
+                // already loaded WPF catalog before throwing.
+                string wrongColumns = Path.Combine(dir, "invalid-matches.tsv.gz");
+                using (FileStream fs = File.Create(wrongColumns))
+                using (GZipStream zip = new GZipStream(fs, CompressionMode.Compress))
+                using (StreamWriter writer = new StreamWriter(zip))
+                {
+                    writer.WriteLine("header");
+                    writer.WriteLine("only\ttwo-columns");
+                }
+                bool rejected = false;
+                try { store.ReloadFromCatalog(empty, wrongColumns); }
+                catch (InvalidDataException) { rejected = true; }
+                if (!rejected) throw new InvalidDataException("Malformed matches row accepted.");
+                VerifyFailedCatalogReloadState(store, oldTracks, oldCds,
+                    oldByDisc, oldMatches, live, trackId, oldDescription);
+
+                // A file with no gzip magic must also leave the committed
+                // catalog and Bridge matches completely untouched.
+                string badGzip = Path.Combine(dir, "invalid-gzip.tsv.gz");
+                File.WriteAllText(badGzip, "not gzip");
+                rejected = false;
+                try { store.ReloadFromCatalog(empty, badGzip); }
+                catch (InvalidDataException) { rejected = true; }
+                if (!rejected) throw new InvalidDataException("Malformed gzip accepted.");
+                VerifyFailedCatalogReloadState(store, oldTracks, oldCds,
+                    oldByDisc, oldMatches, live, trackId, oldDescription);
+
+                // Successful replacement retires stale catalog and matches,
+                // but leaves the independent Bridge generation selectable.
+                store.ReloadFromCatalog(empty, null);
+                if (store.Tracks.Count != 0 || store.Cds.Count != 0 ||
+                    store.TracksByDisc.Count != 0 || store.MatchesByTrack.Count != 0 ||
+                    store.ProjectedTrackGenreCount != 0 || store.ProjectedCdGenreCount != 0 ||
+                    store.DigitalItemCount != 1 ||
+                    !Object.ReferenceEquals(store.GetActiveDigitalItem(771), live))
+                    throw new InvalidDataException("Successful catalog reload retained stale data.");
+            }
+        }
+
+        private static void VerifyFailedCatalogReloadState(
+            DataStore store, System.Collections.Generic.List<TrackRow> tracks,
+            System.Collections.Generic.List<CdRow> cds,
+            System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<TrackRow>> byDisc,
+            System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<MatchRow>> matches,
+            DigitalItem source, int trackId, string description)
+        {
+            if (!Object.ReferenceEquals(store.Tracks, tracks) ||
+                !Object.ReferenceEquals(store.Cds, cds) ||
+                !Object.ReferenceEquals(store.TracksByDisc, byDisc) ||
+                !Object.ReferenceEquals(store.MatchesByTrack, matches) ||
+                !Object.ReferenceEquals(store.GetActiveDigitalItem(771), source) ||
+                store.DigitalSourceDescription != description ||
+                store.Tracks.Count != 1 || store.Cds.Count != 1 ||
+                store.Tracks[0].StrongCount != 1 || store.Tracks[0].Genre != "Trance" ||
+                store.Cds[0].Genre != "Trance" ||
+                store.GetMatchesForTrack(trackId).Count != 1 ||
+                store.ProjectedTrackGenreCount != 1 || store.ProjectedCdGenreCount != 1)
+                throw new InvalidDataException("Rejected catalog reload destroyed live UI/Bridge state.");
         }
 
         private static void VerifyLiveIdentityAndCueProjection()

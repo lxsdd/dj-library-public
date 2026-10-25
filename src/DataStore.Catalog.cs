@@ -16,6 +16,27 @@ namespace DJLibrary
         public void LoadFromCatalog(CatalogService catalog, string referenceMatchesPath)
         {
             if (catalog == null) throw new ArgumentNullException("catalog");
+            // Decode and validate into an isolated snapshot before publishing
+            // any catalog, Bridge or GENRE changes to the WPF view.
+            DataStore staged = new DataStore();
+            staged._activeLiveItems = _activeLiveItems;
+            staged._activeLiveItemsById = _activeLiveItemsById;
+            staged.BuildCatalogSnapshot(catalog, referenceMatchesPath);
+            staged.Validate();
+            Tracks = staged.Tracks;
+            Cds = staged.Cds;
+            TracksByDisc = staged.TracksByDisc;
+            MatchesByTrack = staged.MatchesByTrack;
+            DigitalItemCount = staged.DigitalItemCount;
+            ProjectedTrackGenreCount = staged.ProjectedTrackGenreCount;
+            ProjectedCdGenreCount = staged.ProjectedCdGenreCount;
+            DigitalSourceDescription = staged.DigitalSourceDescription;
+            _activeLiveItems = staged._activeLiveItems;
+            _activeLiveItemsById = staged._activeLiveItemsById;
+        }
+
+        private void BuildCatalogSnapshot(CatalogService catalog, string referenceMatchesPath)
+        {
             bool pristine = !catalog.HasUserChanges;
             Tracks.Clear(); Cds.Clear(); TracksByDisc.Clear(); MatchesByTrack.Clear();
             DigitalItemCount = 0; ProjectedTrackGenreCount = 0; ProjectedCdGenreCount = 0;
