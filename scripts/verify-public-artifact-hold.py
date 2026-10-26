@@ -12,8 +12,8 @@ import sys
 
 root = Path(__file__).resolve().parents[1]
 scripts = root / "scripts"
-expected_commit = "5fe7284520b607c6fb7d781ca94999bf0d4407ab"
-expected_blob = "d096e65254e7d6e99f8254c31743e60e9b94062f"
+expected_commit = "4ea764a2e586ebe3c4274634666f77b3370dc246"
+expected_blob = "ff55f22ac0aafc500e8ee5235e253d0bb4ad8d69"
 pin = json.loads((scripts / "SHARED_PUBLICATION_GUARD.pin.json").read_text(encoding="utf-8"))
 if (pin.get("source_repo") != "lxsdd/dev-infrastructure-public"
         or pin.get("source_commit") != expected_commit
@@ -118,3 +118,29 @@ mutate_and_expect(
     "Unreviewed, missing or renamed workflow",
 )
 print("PASS_DJ_LIBRARY_PUBLICATION_MUTATIONS_6_OF_6")
+
+# Additional mutation regressions for the exact hardened canonical guard.
+# Keep canonical steps and disabled package/upload gates byte-for-byte.
+noncanonical_uses = (
+    "      - uses: >-\n          actions/upload-artifact@v4\n",
+    "      - uses: |-\n          actions/upload-artifact@v4\n",
+    "      - 'uses': actions/upload-artifact@v4\n",
+    '      - "uses": actions/upload-artifact@v4\n',
+    "      - uses : actions/upload-artifact@v4\n",
+    "      - uses: !!str actions/upload-artifact@v4\n",
+    "      - {name: Publish, uses: actions/upload-artifact@v4}\n",
+)
+for index, variant in enumerate(noncanonical_uses, 1):
+    # Place the injected action inside an existing enabled step job. The
+    # existing disabled upload remains to prove the exact-count gate alone
+    # cannot detect the new action.
+    anchor = "      # Do not publish Windows product binaries from this source-only Draft."
+    if windows.count(anchor) != 1:
+        sys.exit("FAIL_DJ_LIBRARY_NONCANONICAL_INSERTION_ANCHOR")
+    altered = windows.replace(anchor, variant + anchor, 1)
+    mutate_and_expect(
+        f"NONCANONICAL_YAML_{index}",
+        {**sources, "windows.yml": altered},
+        "noncanonical YAML action key/scalar",
+    )
+print("PASS_DJ_LIBRARY_PUBLICATION_MUTATIONS_13_OF_13")
